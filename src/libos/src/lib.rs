@@ -16,6 +16,7 @@
 #![feature(option_expect_none)]
 // for UntrustedSliceAlloc in slice_alloc
 #![feature(slice_ptr_get)]
+#![feature(slice_fill)]
 
 #[macro_use]
 extern crate alloc;
