@@ -1,5 +1,8 @@
 use super::*;
-use crate::untrusted::{SliceAsMutPtrAndLen, SliceAsPtrAndLen, UntrustedSliceAlloc};
+use crate::untrusted::{
+    OcallAlloc, SliceAsMutPtrAndLen, SliceAsPtrAndLen, UntrustedSliceAlloc, MAX_OCALL_ALLOC_SIZE,
+};
+use std::alloc::{AllocErr, AllocRef, Layout};
 
 impl HostSocket {
     pub fn recv(&self, buf: &mut [u8], flags: RecvFlags) -> Result<usize> {
@@ -32,11 +35,27 @@ impl HostSocket {
         mut control: Option<&mut [u8]>,
     ) -> Result<(usize, usize, usize, MsgHdrFlags)> {
         let data_length = data.iter().map(|s| s.len()).sum();
-        let u_allocator = UntrustedSliceAlloc::new(data_length)?;
+        let use_ocalloc = data_length <= MAX_OCALL_ALLOC_SIZE;
+        let mut u1_allocator = OcallAlloc;
+        let u2_allocator = if use_ocalloc {
+            UntrustedSliceAlloc::new(0)?
+        } else {
+            UntrustedSliceAlloc::new(data_length)?
+        };
         let mut u_data = {
             let mut bufs = Vec::new();
-            for ref buf in data.iter() {
-                bufs.push(u_allocator.new_slice_mut(buf.len())?);
+            if use_ocalloc {
+                for ref buf in data.iter() {
+                    let layout = Layout::from_size_align(buf.len(), 16)?;
+                    let ptr = u1_allocator.alloc(layout)?;
+                    bufs.push(unsafe {
+                        std::slice::from_raw_parts_mut(ptr.as_mut_ptr(), buf.len())
+                    });
+                }
+            } else {
+                for ref buf in data.iter() {
+                    bufs.push(u2_allocator.new_slice_mut(buf.len())?);
+                }
             }
             bufs
         };
