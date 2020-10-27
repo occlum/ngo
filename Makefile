@@ -68,9 +68,10 @@ install: $(OCCLUM_PREFIX)/sgxsdk-tools/lib64/libsgx_uae_service_sim.so
 	@mkdir -p $(OCCLUM_PREFIX)/build/lib/
 	@# Don't copy libos library and pal library symbolic files to install dir
 	@cd build/lib && cp --no-dereference `ls | grep -Ev $(EXCLUDE_FILES)` $(OCCLUM_PREFIX)/build/lib/ && cd -
-	@# Create symbolic for pal library of hardware mode
+	@# Create symbolic for pal library and libos (hardware mode)
 	@cd $(OCCLUM_PREFIX)/build/lib && ln -sf libocclum-pal.so.$(VERSION_NUM) libocclum-pal.so.$(MAJOR_VER_NUM) && \
-		ln -sf libocclum-pal.so.$(MAJOR_VER_NUM) libocclum-pal.so
+		ln -sf libocclum-pal.so.$(MAJOR_VER_NUM) libocclum-pal.so && \
+		ln -sf libocclum-libos.so.$(VERSION_NUM) libocclum-libos.so.$(MAJOR_VER_NUM) && ln -sf libocclum-libos.so.$(MAJOR_VER_NUM) libocclum-libos.so
 
 	@echo "Install headers and miscs ..."
 	@mkdir -p $(OCCLUM_PREFIX)/include/
@@ -91,7 +92,9 @@ $(OCCLUM_PREFIX)/sgxsdk-tools/lib64/libsgx_uae_service_sim.so: /opt/intel/sgxsdk
 	@cp /opt/intel/sgxsdk/lib64/{libsgx_ptrace.so,libsgx_uae_service_sim.so} $(OCCLUM_PREFIX)/sgxsdk-tools/lib64
 	@mkdir -p $(OCCLUM_PREFIX)/sgxsdk-tools/lib64/gdb-sgx-plugin
 	@cd /opt/intel/sgxsdk/lib64/gdb-sgx-plugin/ && cp $$(ls -A | grep -v __pycache__) $(OCCLUM_PREFIX)/sgxsdk-tools/lib64/gdb-sgx-plugin
-	@cd /opt/intel/sgxsdk && cp -a --parents {bin/sgx-gdb,bin/x64/sgx_sign,sdk_libs/libsgx_uae_service_sim.so} $(OCCLUM_PREFIX)/sgxsdk-tools/
+	@cd /opt/intel/sgxsdk && cp -a --parents {bin/sgx-gdb,bin/x64/sgx_sign} $(OCCLUM_PREFIX)/sgxsdk-tools/
+	@mkdir -p $(OCCLUM_PREFIX)/sgxsdk-tools/sdk_libs && cd $(OCCLUM_PREFIX)/sgxsdk-tools/sdk_libs && \
+		ln -sf ../lib64/libsgx_uae_service_sim.so libsgx_uae_service_sim.so
 	@# Delete SGX_LIBRARY_PATH env in sgx-gdb which are defined in etc/environment
 	@sed -i '/^SGX_LIBRARY_PATH=/d' $(OCCLUM_PREFIX)/sgxsdk-tools/bin/sgx-gdb
 	@cp etc/environment $(OCCLUM_PREFIX)/sgxsdk-tools/
