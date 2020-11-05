@@ -9,7 +9,7 @@ pub use std::collections::{HashMap, VecDeque};
 pub use std::fmt::{Debug, Display};
 pub use std::prelude::v1::*;
 pub use std::sync::{
-    Arc, SgxMutex, SgxMutexGuard, SgxRwLock, SgxRwLockReadGuard, SgxRwLockWriteGuard,
+    Arc, SgxMutex, SgxMutexGuard, SgxRwLock, SgxRwLockReadGuard, SgxRwLockWriteGuard, SgxSpinlock,
 };
 
 // Override prelude::Result with error::Result

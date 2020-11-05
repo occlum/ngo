@@ -7,6 +7,7 @@ use super::vm_manager::{
     VMInitializer, VMManager, VMMapAddr, VMMapOptions, VMMapOptionsBuilder, VMRemapOptions,
 };
 use super::vm_perms::VMPerms;
+use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Debug, Clone)]
@@ -135,14 +136,14 @@ impl<'a, 'b> ProcessVMBuilder<'a, 'b> {
         // Note: we do not need to fill zeros of the mmap region.
         // VMManager will fill zeros (if necessary) on mmap.
 
+        let mmap_manager = UnsafeCell::new(mmap_manager);
+
         debug_assert!(elf_ranges
             .iter()
             .all(|elf_range| process_range.range().is_superset_of(elf_range)));
         debug_assert!(process_range.range().is_superset_of(&heap_range));
         debug_assert!(process_range.range().is_superset_of(&stack_range));
         debug_assert!(process_range.range().is_superset_of(&mmap_range));
-
-        let mmap_manager = SgxMutex::new(mmap_manager);
 
         Ok(ProcessVM {
             process_range,
@@ -200,7 +201,7 @@ impl<'a, 'b> ProcessVMBuilder<'a, 'b> {
 /// The per-process virtual memory
 #[derive(Debug)]
 pub struct ProcessVM {
-    mmap_manager: SgxMutex<VMManager>,
+    mmap_manager: UnsafeCell<VMManager>,
     elf_ranges: Vec<VMRange>,
     heap_range: VMRange,
     stack_range: VMRange,
@@ -328,7 +329,17 @@ impl ProcessVM {
             .initializer(initializer)
             .writeback_file(writeback_file)
             .build()?;
-        let mmap_addr = self.mmap_manager.lock().unwrap().mmap(mmap_options)?;
+        let mmap_addr = unsafe {
+            let spin_lock = SgxSpinlock::new();
+            let guard = spin_lock.lock();;
+            let mmap_addr = self
+                .mmap_manager
+                .get()
+                .as_mut()
+                .unwrap()
+                .mmap(mmap_options)?;
+            mmap_addr
+        };
         Ok(mmap_addr)
     }
 
@@ -346,11 +357,26 @@ impl ProcessVM {
         }
 
         let mremap_option = VMRemapOptions::new(old_addr, old_size, new_size, flags)?;
-        self.mmap_manager.lock().unwrap().mremap(&mremap_option)
+        unsafe {
+            let spin_lock = SgxSpinlock::new();
+            let guard = spin_lock.lock();;
+            let ret = self
+                .mmap_manager
+                .get()
+                .as_mut()
+                .unwrap()
+                .mremap(&mremap_option);
+            ret
+        }
     }
 
     pub fn munmap(&self, addr: usize, size: usize) -> Result<()> {
-        self.mmap_manager.lock().unwrap().munmap(addr, size)
+        unsafe {
+            let spin_lock = SgxSpinlock::new();
+            let guard = spin_lock.lock();;
+            let ret = self.mmap_manager.get().as_mut().unwrap().munmap(addr, size);
+            ret
+        }
     }
 
     pub fn mprotect(&self, addr: usize, size: usize, perms: VMPerms) -> Result<()> {
@@ -358,35 +384,74 @@ impl ProcessVM {
         if !self.process_range.range().is_superset_of(&protect_range) {
             return_errno!(ENOMEM, "invalid range");
         }
-        let mut mmap_manager = self.mmap_manager.lock().unwrap();
 
-        // TODO: support mprotect vm regions in addition to mmap
-        if !mmap_manager.range().is_superset_of(&protect_range) {
-            warn!("Do not support mprotect memory outside the mmap region yet");
-            return Ok(());
+        unsafe {
+            let spin_lock = SgxSpinlock::new();
+            let guard = spin_lock.lock();;
+            // TODO: support mprotect vm regions in addition to mmap
+            if !self
+                .mmap_manager
+                .get()
+                .as_mut()
+                .unwrap()
+                .range()
+                .is_superset_of(&protect_range)
+            {
+                warn!("Do not support mprotect memory outside the mmap region yet");
+                return Ok(());
+            }
+
+            let ret = self
+                .mmap_manager
+                .get()
+                .as_mut()
+                .unwrap()
+                .mprotect(addr, size, perms);
+            ret
         }
-
-        mmap_manager.mprotect(addr, size, perms)
     }
 
     pub fn msync(&self, addr: usize, size: usize) -> Result<()> {
         let sync_range = VMRange::new_with_size(addr, size)?;
-        let mut mmap_manager = self.mmap_manager.lock().unwrap();
-        mmap_manager.msync_by_range(&sync_range)
+        unsafe {
+            let spin_lock = SgxSpinlock::new();
+            let guard = spin_lock.lock();;
+            let ret = self
+                .mmap_manager
+                .get()
+                .as_mut()
+                .unwrap()
+                .msync_by_range(&sync_range);
+            ret
+        }
     }
 
     pub fn msync_by_file(&self, sync_file: &FileRef) {
-        let mut mmap_manager = self.mmap_manager.lock().unwrap();
-        mmap_manager.msync_by_file(sync_file);
+        unsafe {
+            let spin_lock = SgxSpinlock::new();
+            let guard = spin_lock.lock();;
+            self.mmap_manager
+                .get()
+                .as_mut()
+                .unwrap()
+                .msync_by_file(sync_file);
+        }
     }
 
     // Return: a copy of the found region
     pub fn find_mmap_region(&self, addr: usize) -> Result<VMRange> {
-        self.mmap_manager
-            .lock()
-            .unwrap()
-            .find_mmap_region(addr)
-            .map(|range_ref| *range_ref)
+        unsafe {
+            let spin_lock = SgxSpinlock::new();
+            let guard = spin_lock.lock();
+            let ret = self
+                .mmap_manager
+                .get()
+                .as_mut()
+                .unwrap()
+                .find_mmap_region(addr)
+                .map(|range_ref| *range_ref);
+            ret
+        }
     }
 }
 
