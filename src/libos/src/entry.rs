@@ -17,6 +17,8 @@ use sgx_tse::*;
 
 pub static mut INSTANCE_DIR: String = String::new();
 static mut ENCLAVE_PATH: String = String::new();
+//static mut native: u64 = 0;
+//pub static mut DONE: bool = SgxMutex::new(false);
 
 lazy_static! {
     static ref INIT_ONCE: Once = Once::new();
@@ -84,8 +86,7 @@ pub extern "C" fn occlum_ecall_init(log_level: *const c_char, instance_dir: *con
         // Enable global backtrace
         unsafe { backtrace::enable_backtrace(&ENCLAVE_PATH, PrintFormat::Short) };
     });
-
-    0
+    return 0;
 }
 
 #[no_mangle]

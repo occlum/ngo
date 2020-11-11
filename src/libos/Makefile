@@ -85,7 +85,7 @@ C_FLAGS := $(SGX_CFLAGS_T) $(C_COMMON_FLAGS)
 CXX_FLAGS := $(SGX_CXXFLAGS_T) $(C_COMMON_FLAGS)
 
 _Other_Link_Flags := -L$(RUST_SGX_SDK_DIR)/compiler-rt/ -L$(BUILD_DIR)/lib -L$(RUST_OUT_DIR)
-_Other_Enclave_Libs := -l$(LIBOS_CORE_LIB_NAME) -lsgx_tprotected_fs
+_Other_Enclave_Libs := -lsgx_pthread -l$(LIBOS_CORE_LIB_NAME) -lsgx_tprotected_fs
 LINK_FLAGS := $(SGX_LFLAGS_T)
 
 .PHONY: all clean format format-c format-rust format-check format-check-c format-check-rust

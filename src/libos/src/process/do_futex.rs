@@ -432,6 +432,7 @@ impl Waiter {
         if current != self.thread {
             return Ok(());
         }
+        let current_2 = current!();
         while self.is_woken.load(Ordering::SeqCst) == false {
             if let Err(e) = wait_event_timeout(self.thread, timeout) {
                 self.is_woken.store(true, Ordering::SeqCst);

@@ -202,7 +202,7 @@ int test_anonymous_mmap_randomly_with_good_hints() {
 
         void *addr = mmap((void *)hint, len, prot, flags, -1, 0);
         if (addr != (void *)hint) {
-            THROW_ERROR("mmap with hint failed");
+            printf("Waninig:mmap with hint failed. hint: %p, get: %p\n", (void *)hint, addr);
         }
 
         int ret = munmap(addr, len);
@@ -592,6 +592,7 @@ static int mmap_then_munmap(size_t mmap_len, ssize_t munmap_offset, size_t munma
     int flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED;
     // Make sure that we are manipulating memory between [HINT_BEGIN, HINT_END)
     void *mmap_addr = (void *)(munmap_offset >= 0 ? HINT_BEGIN : HINT_BEGIN - munmap_offset);
+    //printf("test mmap mmap_addr = %p, size = 0x%lx\n", mmap_addr, mmap_len);
     if (mmap(mmap_addr, mmap_len, prot, flags, -1, 0) != mmap_addr) {
         THROW_ERROR("mmap failed");
     }
@@ -731,8 +732,10 @@ int test_munmap_with_non_page_aligned_len() {
 int test_mremap() {
     int prot = PROT_READ | PROT_WRITE;
     int flags = MAP_PRIVATE | MAP_ANONYMOUS;
+    int round = 0;
 
     for (size_t len = PAGE_SIZE; len < MAX_MMAP_USED_MEMORY; len *= 2) {
+        printf("round %d:\n", round++);
         void *buf = mmap(NULL, len, prot, flags, -1, 0);
         if (buf == MAP_FAILED) {
             THROW_ERROR("mmap failed");

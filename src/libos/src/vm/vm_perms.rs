@@ -6,6 +6,7 @@ bitflags! {
         const WRITE       = 0x2;
         const EXEC        = 0x4;
         const ALL         = Self::READ.bits | Self::WRITE.bits | Self::EXEC.bits;
+        const DEFAULT     = Self::READ.bits | Self::WRITE.bits;
     }
 }
 
@@ -25,10 +26,14 @@ impl VMPerms {
     pub fn can_execute(&self) -> bool {
         self.contains(VMPerms::EXEC)
     }
+
+    pub fn is_default(&self) -> bool {
+        self.contains(VMPerms::DEFAULT)
+    }
 }
 
 impl Default for VMPerms {
     fn default() -> Self {
-        VMPerms::ALL
+        VMPerms::DEFAULT
     }
 }
