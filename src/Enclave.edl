@@ -232,5 +232,8 @@ enclave {
            uint32_t sig_rl_size,
            [out] uint32_t* p_quote_size
         );
+
+        uint64_t occlum_ocall_get_vdso_info([out] uint64_t* low_res_nsec);
+
     };
 };
