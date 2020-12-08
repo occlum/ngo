@@ -1,0 +1,63 @@
+{
+    "resource_limits": {
+        "user_space_size": "1280MB",
+        "kernel_space_heap_size": "100MB",
+        "kernel_space_stack_size": "10MB",
+        "max_num_of_threads": 32
+    },
+    "process": {
+        "default_stack_size": "4MB",
+        "default_heap_size": "32MB",
+        "default_mmap_size": "1024MB"
+    },
+    "entry_points": [
+        "/bin"
+    ],
+    "env": {
+        "default": [
+            "OCCLUM=yes"
+        ],
+        "untrusted": [
+            "EXAMPLE"
+        ]
+    },
+    "metadata": {
+        "product_id": 0,
+        "version_number": 0,
+        "debuggable": true
+    },
+    "mount": [
+        {
+            "target": "/",
+            "type": "unionfs",
+            "options": {
+                "layers": [
+                    {
+                        "target": "/",
+                        "type": "sefs",
+                        "source": "./image",
+                        "options": {
+                            "integrity_only": true
+                        }
+                    },
+                    {
+                        "target": "/",
+                        "type": "sefs"
+                    }
+                ]
+            }
+        },
+        {
+            "target": "/host",
+            "type": "hostfs",
+            "source": "."
+        },
+        {
+            "target": "/tmp",
+            "type": "sefs",
+            "options": {
+                "temporary": true
+            }
+        }
+    ]
+}
