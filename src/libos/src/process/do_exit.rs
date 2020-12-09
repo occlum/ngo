@@ -4,8 +4,11 @@ use std::intrinsics::atomic_store;
 use super::do_futex::futex_wake;
 use super::process::{Process, ProcessFilter};
 use super::{table, TermStatus, ThreadRef, ThreadStatus};
+use crate::libc::pthread_join;
 use crate::prelude::*;
 use crate::signal::{KernelSignal, SigNum};
+use crate::vm::{VM_CLEAN_DONE, VM_CLEAN_THREAD, VM_CLEAN_THREAD_RUNNING};
+use core::ptr;
 
 pub fn do_exit_group(status: i32) {
     let term_status = TermStatus::Exited(status as u8);
@@ -84,6 +87,15 @@ fn exit_process(thread: &ThreadRef, term_status: TermStatus) {
         }
         break Some(parent_inner);
     };
+    // The parent is the idle process
+    if parent_inner.is_none() {
+        unsafe {
+            VM_CLEAN_THREAD_RUNNING = false;
+        }
+        let done = VM_CLEAN_DONE.lock().unwrap();
+        debug_assert!(*done == true);
+        //let ret = unsafe{ libc::pthread_join(VM_CLEAN_THREAD, ptr::null_mut()) };
+    }
     // Lock the current process
     let mut process_inner = process.inner();
 

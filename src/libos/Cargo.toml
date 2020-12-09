@@ -36,6 +36,7 @@ sgx1_exception_sim = [] # Simulate #PF and #GP exceptions on SGX 1
 
 [target.'cfg(not(target_env = "sgx"))'.dependencies]
 xmas-elf = { path = "../../deps/xmas-elf" }
+crossbeam-queue = { version = "0.3.0", default-features = false, features = ["alloc"] }
 sgx_types = { path = "../../deps/rust-sgx-sdk/sgx_types" }
 sgx_tstd = { path = "../../deps/rust-sgx-sdk/sgx_tstd", features = ["backtrace"] }
 sgx_trts = { path = "../../deps/rust-sgx-sdk/sgx_trts" }

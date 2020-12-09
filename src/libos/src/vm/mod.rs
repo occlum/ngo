@@ -3,9 +3,11 @@ use fs::{File, FileDesc, FileRef};
 use process::{Process, ProcessRef};
 use std::fmt;
 
+mod free_vm_manager;
 mod process_vm;
 mod user_space_vm;
 mod vm_area;
+mod vm_clean_thread;
 mod vm_layout;
 mod vm_manager;
 mod vm_perms;
@@ -16,6 +18,9 @@ use self::vm_manager::{VMManager, VMMapOptionsBuilder};
 
 pub use self::process_vm::{MMapFlags, MRemapFlags, MSyncFlags, ProcessVM, ProcessVMBuilder};
 pub use self::user_space_vm::USER_SPACE_VM_MANAGER;
+pub use self::vm_clean_thread::{
+    init_vm_clean_thread, VM_CLEAN_DONE, VM_CLEAN_THREAD, VM_CLEAN_THREAD_RUNNING,
+};
 pub use self::vm_perms::VMPerms;
 pub use self::vm_range::VMRange;
 

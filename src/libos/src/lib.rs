@@ -34,6 +34,7 @@ extern crate sgx_tse;
 extern crate xmas_elf;
 #[macro_use]
 extern crate lazy_static;
+extern crate crossbeam_queue;
 #[macro_use]
 extern crate log;
 extern crate rcore_fs;
