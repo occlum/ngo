@@ -7,6 +7,8 @@ use super::{table, ProcessRef, StatusChange, TermStatus, ThreadRef, ThreadStatus
 use crate::prelude::*;
 use crate::signal::constants::*;
 use crate::signal::{KernelSignal, SigNum};
+use crate::vm::{CLEAN_REQ_QUEUE, CLEAN_RUNNER, MPMC, USER_SPACE_VM_MANAGER};
+use core::ptr;
 
 pub fn do_exit_group(status: i32) {
     let term_status = TermStatus::Exited(status as u8);
@@ -62,6 +64,9 @@ fn exit_thread(term_status: TermStatus) {
 fn exit_process(thread: &ThreadRef, term_status: TermStatus) {
     let process = thread.process();
 
+    // clean the process vm
+    thread.vm().clean_when_exit();
+
     // Deadlock note: always lock parent first, then child.
 
     // Lock the idle process since it may adopt new children.
@@ -85,6 +90,14 @@ fn exit_process(thread: &ThreadRef, term_status: TermStatus) {
         }
         break Some(parent_inner);
     };
+    // The parent is the idle process
+    // if parent_inner.is_none() {
+    //     // unsafe { *VM_CLEAN_THREAD_RUNNING.get_mut() = false };
+
+    //     // let done = *VM_CLEAN_DONE.lock().unwrap();
+    //     // debug_assert!(done == true);
+    //     //let ret = unsafe{ libc::pthread_join(VM_CLEAN_THREAD, ptr::null_mut()) };
+    // }
     // Lock the current process
     let mut process_inner = process.inner();
 
@@ -100,6 +113,18 @@ fn exit_process(thread: &ThreadRef, term_status: TermStatus) {
         process_inner.exit(term_status, &idle_ref, &mut idle_inner, &parent);
         idle_inner.remove_zombie_child(pid);
         wake_host(&process, term_status);
+        if !CLEAN_RUNNER.is_empty() {
+            let clean_runner = CLEAN_RUNNER.clone();
+            while let Ok(req) = CLEAN_RUNNER.try_recv() {
+                USER_SPACE_VM_MANAGER.vm_manager().clean_dirty_range(req);
+            }
+        }
+        drop(&*CLEAN_REQ_QUEUE);
+        assert!(CLEAN_RUNNER.is_empty());
+        USER_SPACE_VM_MANAGER.vm_manager().sort_when_exit();
+        // Sadly, this is not true
+        // assert!(CLEAN_RUNNER.is_disconnected());
+        println!("vm clean thread should exit");
         return;
     }
     // Otherwise, we need to notify the parent process

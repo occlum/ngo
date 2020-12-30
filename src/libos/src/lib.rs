@@ -20,6 +20,7 @@
 #![feature(get_mut_unchecked)]
 #![feature(drain_filter)]
 #![feature(test)]
+#![feature(box_syntax)]
 
 #[macro_use]
 extern crate async_rt;
@@ -33,12 +34,14 @@ extern crate sgx_types;
 #[cfg(not(target_env = "sgx"))]
 #[macro_use]
 extern crate sgx_tstd as std;
+extern crate goblin;
+extern crate scroll;
 extern crate sgx_tcrypto;
 extern crate sgx_trts;
 extern crate sgx_tse;
-extern crate xmas_elf;
 #[macro_use]
 extern crate lazy_static;
+extern crate crossbeam_queue;
 #[macro_use]
 extern crate log;
 extern crate rcore_fs;
@@ -54,6 +57,8 @@ extern crate serde;
 extern crate serde_json;
 #[macro_use]
 extern crate memoffset;
+extern crate flume;
+extern crate intrusive_collections;
 extern crate vdso_time;
 
 use sgx_trts::libc;

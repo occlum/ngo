@@ -2,7 +2,7 @@ use super::*;
 use std::ffi::{CStr, CString};
 use std::mem::size_of;
 use std::ptr;
-use vm::VMRange;
+use vm::{VMRange, USER_SPACE_VM_MANAGER};
 
 /// Memory utilities that deals with primitive types passed from user process
 /// running inside enclave
@@ -90,7 +90,7 @@ pub mod from_user {
     /// len: the length in byte
     fn is_inside_user_space(addr: *const u8, len: usize) -> bool {
         let current = current!();
-        let user_range = current.vm().get_process_range();
+        let user_range = USER_SPACE_VM_MANAGER.vm_manager().range();
         let ur_start = user_range.start();
         let ur_end = user_range.end();
         let addr_start = addr as usize;

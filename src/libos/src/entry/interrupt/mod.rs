@@ -6,6 +6,7 @@ use self::sgx::sgx_interrupt_info_t;
 use super::context_switch::{self, GpRegs};
 use crate::prelude::*;
 use crate::process::ThreadRef;
+use crate::vm::USER_SPACE_VM_MANAGER;
 
 mod sgx;
 
@@ -46,10 +47,8 @@ pub async fn handle_interrupt() -> Result<()> {
 pub fn enable_current_thread() {
     // Interruptible range
     let (addr, size) = {
-        let thread = current!();
-        let vm = thread.vm();
-        let range = vm.get_process_range();
-        (range.start(), range.size())
+        let vm_range = USER_SPACE_VM_MANAGER.vm_manager().range();
+        (vm_range.start(), vm_range.size())
     };
     unsafe {
         let status = sgx::sgx_interrupt_enable(addr, size);

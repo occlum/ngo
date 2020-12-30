@@ -3,9 +3,11 @@ use fs::{File, FileDesc, FileRef};
 use process::{Process, ProcessRef};
 use std::fmt;
 
+mod free_vm_manager;
 mod process_vm;
 mod user_space_vm;
 mod vm_area;
+mod vm_clean_thread;
 mod vm_layout;
 mod vm_manager;
 mod vm_perms;
@@ -16,6 +18,10 @@ use self::vm_manager::{VMManager, VMMapOptionsBuilder};
 
 pub use self::process_vm::{MMapFlags, MRemapFlags, MSyncFlags, ProcessVM, ProcessVMBuilder};
 pub use self::user_space_vm::USER_SPACE_VM_MANAGER;
+pub use self::vm_clean_thread::{
+    become_clean_thread, create_tmp_vm_clean_thread, init_vm_clean_thread, CLEAN_REQ_QUEUE,
+    CLEAN_RUNNER, MPMC,
+};
 pub use self::vm_perms::VMPerms;
 pub use self::vm_range::VMRange;
 
@@ -42,13 +48,13 @@ pub fn do_mmap(
     current!().vm().mmap(addr, size, perms, flags, fd, offset)
 }
 
-pub fn do_munmap(addr: usize, size: usize) -> Result<()> {
+pub async fn do_munmap(addr: usize, size: usize) -> Result<()> {
     debug!("munmap: addr: {:#x}, size: {:#x}", addr, size);
     let current = current!();
     current!().vm().munmap(addr, size)
 }
 
-pub fn do_mremap(
+pub async fn do_mremap(
     old_addr: usize,
     old_size: usize,
     new_size: usize,
