@@ -1,4 +1,8 @@
 use super::*;
+use crate::untrusted::{
+    OcallAlloc, SliceAsMutPtrAndLen, SliceAsPtrAndLen, UntrustedSliceAlloc, MAX_OCALL_ALLOC_SIZE,
+};
+use std::alloc::{AllocErr, AllocRef, Layout};
 
 impl HostSocket {
     pub fn send(&self, buf: &[u8], flags: SendFlags) -> Result<usize> {
@@ -24,11 +28,35 @@ impl HostSocket {
         control: Option<&[u8]>,
     ) -> Result<usize> {
         let data_length = data.iter().map(|s| s.len()).sum();
-        let u_allocator = UntrustedSliceAlloc::new(data_length)?;
+        let use_ocalloc = data_length <= MAX_OCALL_ALLOC_SIZE;
+        let mut u1_allocator = OcallAlloc;
+        let u2_allocator = if use_ocalloc {
+            UntrustedSliceAlloc::new(0)?
+        } else {
+            UntrustedSliceAlloc::new(data_length)?
+        };
         let u_data = {
             let mut bufs = Vec::new();
-            for buf in data {
-                bufs.push(u_allocator.new_slice(buf)?);
+            if use_ocalloc {
+                for buf in data {
+                    let layout = Layout::from_size_align(buf.len(), 16)?;
+                    // TODO: reduce the call to alloc once
+                    let mut ptr = u1_allocator.alloc(layout)?;
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            buf.as_ptr(),
+                            ptr.as_mut().as_mut_ptr(),
+                            buf.len(),
+                        );
+                    }
+                    bufs.push(unsafe {
+                        std::slice::from_raw_parts(ptr.as_ref().as_ptr(), buf.len())
+                    });
+                }
+            } else {
+                for buf in data {
+                    bufs.push(u2_allocator.new_slice(buf)?);
+                }
             }
             bufs
         };
