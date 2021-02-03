@@ -1,6 +1,7 @@
 #include <pthread.h>
 #include <sys/time.h>
 #include <sys/prctl.h>
+#include <sys/auxv.h>
 #include "ocalls.h"
 
 void occlum_ocall_gettimeofday(struct timeval *tv) {
@@ -40,4 +41,19 @@ void occlum_ocall_rdtsc(uint32_t *low, uint32_t *high) {
 void occlum_ocall_get_timerslack(int *timer_slack) {
     int nanoseconds = prctl(PR_GET_TIMERSLACK, 0, 0, 0, 0);
     *timer_slack = nanoseconds;
+}
+
+uint64_t occlum_ocall_get_vdso_info(uint64_t *low_res_nsec) {
+    struct timespec tv;
+    if (!clock_getres(CLOCK_REALTIME_COARSE, &tv)) {
+        *low_res_nsec = tv.tv_nsec;
+    }
+
+    uint64_t vdso_addr = getauxval(AT_SYSINFO_EHDR);
+
+    int vvar_offset = -4;
+    // todo: determine the vvar_offset, maybe -1, -2, -3, -4, -5...
+
+    // return __vdso_data addr
+    return (vdso_addr + vvar_offset * 4096) + 128;
 }
