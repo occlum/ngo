@@ -1,27 +1,24 @@
 {
     "resource_limits": {
-        "kernel_space_heap_size": "40MB",
+        "user_space_size": "2200MB",
+        "kernel_space_heap_size": "32MB",
         "kernel_space_stack_size": "1MB",
-        "user_space_size": "400MB",
         "max_num_of_threads": 32
     },
     "process": {
         "default_stack_size": "4MB",
-        "default_heap_size": "8MB",
-        "default_mmap_size": "100MB"
+        "default_heap_size": "32MB",
+        "default_mmap_size": "2000MB"
     },
     "entry_points": [
         "/bin"
     ],
     "env": {
         "default": [
-            "OCCLUM=yes",
-            "STABLE=yes",
-            "OVERRIDE=N"
+            "OCCLUM=yes"
         ],
         "untrusted": [
-            "TEST",
-            "OVERRIDE"
+            "EXAMPLE"
         ]
     },
     "metadata": {
@@ -56,19 +53,11 @@
             "source": "."
         },
         {
-            "target": "/proc",
-            "type": "procfs"
-        },
-        {
             "target": "/tmp",
             "type": "sefs",
             "options": {
                 "temporary": true
             }
-        },
-        {
-            "target": "/dev",
-            "type": "devfs"
         }
     ]
 }

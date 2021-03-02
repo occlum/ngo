@@ -4,6 +4,7 @@
 #include <spawn.h>
 #include <sys/wait.h>
 #include "test.h"
+#include <errno.h>
 
 int test_sysinfo() {
     const long MIN = 60;
@@ -19,7 +20,7 @@ int test_sysinfo() {
     // Test procs number
     int ret = posix_spawn(&child_pid, "/bin/getpid", NULL, NULL, NULL, NULL);
     if (ret < 0 ) {
-        THROW_ERROR("spawn process error");
+        THROW_ERROR("spawn process error code: %d", errno);
     }
 
     sysinfo (&info);

@@ -3,6 +3,8 @@ use std::ops::{Deref, DerefMut};
 use super::vm_perms::VMPerms;
 use super::vm_range::VMRange;
 use super::*;
+use intrusive_collections::rbtree::{Link, RBTree};
+use intrusive_collections::{intrusive_adapter, KeyAdapter};
 
 #[derive(Clone, Debug, Default)]
 pub struct VMArea {
@@ -107,5 +109,50 @@ impl Deref for VMArea {
 
     fn deref(&self) -> &Self::Target {
         &self.range
+    }
+}
+
+#[derive(Clone)]
+pub struct VMAObj {
+    link: Link,
+    pub vma: VMArea,
+}
+
+impl fmt::Debug for VMAObj {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.vma)
+    }
+}
+
+// key adapter for RBTree which is sorted by the start of vma ranges
+intrusive_adapter!(pub VMAAdapter = Box<VMAObj>: VMAObj { link : Link });
+impl<'a> KeyAdapter<'a> for VMAAdapter {
+    type Key = usize;
+    fn get_key(&self, vma_obj: &'a VMAObj) -> usize {
+        vma_obj.vma.range().start()
+    }
+}
+
+pub fn make_vma_obj(vma: VMArea) -> Box<VMAObj> {
+    Box::new(VMAObj {
+        link: Link::new(),
+        vma,
+    })
+}
+
+impl VMArea {
+    pub fn new_obj(
+        range: VMRange,
+        perms: VMPerms,
+        writeback_file: Option<(FileRef, usize)>,
+    ) -> Box<VMAObj> {
+        box VMAObj {
+            link: Link::new(),
+            vma: VMArea {
+                range,
+                perms,
+                writeback_file,
+            },
+        }
     }
 }

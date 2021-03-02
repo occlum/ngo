@@ -6,6 +6,7 @@ use crate::misc::ResourceLimits;
 /// The idle process has no practical use except making process 1 (a.k.a, the init proess)
 /// having a parent.
 use crate::prelude::*;
+use crate::vm::init_vm_clean_thread;
 use crate::vm::ProcessVM;
 
 lazy_static! {
@@ -32,6 +33,8 @@ fn create_idle_thread() -> Result<ThreadRef> {
 
     let idle_thread = idle_process.main_thread().unwrap();
     debug_assert!(idle_thread.tid() == 0);
+
+    init_vm_clean_thread();
 
     // We do not add the idle process/thread to the process/thread table.
     // This ensures that the idle process is not accessible from the user space.

@@ -14,7 +14,7 @@ FAIL_LOG = $(BUILD_DIR)/test/.fail
 
 # Dependencies: need to be compiled but not to run by any Makefile target
 TEST_DEPS := client data_sink
-# Tests: need to be compiled and run by test-% target
+# Tests: need to be compiled and run by test-% target pthread exit_group
 TESTS ?= env empty hello_world malloc mmap file fs_perms getpid spawn sched pipe time \
 	truncate readdir mkdir open stat link symlink chmod chown tls pthread uname rlimit \
 	server server_epoll unix_socket cout hostfs cpuid rdtsc device sleep exit_group \

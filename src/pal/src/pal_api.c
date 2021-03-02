@@ -33,7 +33,7 @@ int occlum_pal_init(const struct occlum_pal_attr *attr) {
 
     if (attr->num_vcpus == 0) {
         // TODO: retrive the number of CPUs on the platform
-        *(int *)(&attr->num_vcpus) = 2;
+        *(int *)(&attr->num_vcpus) = 8;
     }
 
     sgx_enclave_id_t eid = pal_get_enclave_id();
@@ -73,10 +73,10 @@ int occlum_pal_init(const struct occlum_pal_attr *attr) {
 
 // FIXME
 #ifndef SGX_MODE_SIM
-    if (pal_interrupt_thread_start() < 0) {
-        PAL_ERROR("Failed to start the interrupt thread: %s", errno2str(errno));
-        goto on_destroy_enclave;
-    }
+    // if (pal_interrupt_thread_start() < 0) {
+    //     PAL_ERROR("Failed to start the interrupt thread: %s", errno2str(errno));
+    //     goto on_destroy_enclave;
+    // }
 #endif
 
     return 0;
@@ -184,10 +184,10 @@ int occlum_pal_destroy(void) {
 
 // FIXME
 #ifndef SGX_MODE_SIM
-    if (pal_interrupt_thread_stop() < 0) {
-        ret = -1;
-        PAL_WARN("Cannot stop the interrupt thread: %s", errno2str(errno));
-    }
+    // if (pal_interrupt_thread_stop() < 0) {
+    //     ret = -1;
+    //     PAL_WARN("Cannot stop the interrupt thread: %s", errno2str(errno));
+    // }
 #endif
 
     // Make sure all helper threads exit

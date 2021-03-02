@@ -125,6 +125,7 @@ macro_rules! process_syscall_table_with_callback {
             (ArchPrctl = 158) => do_arch_prctl(code: u32, addr: *mut usize),
             (Getpid = 39) => do_getpid(),
             (Getppid = 110) => do_getppid(),
+            (Nanosleep = 35) => do_nanosleep(req_u: *const timespec_t, rem_u: *mut timespec_t),
             (SetTidAddress = 218) => do_set_tid_address(tidptr: *mut pid_t),
             (Prlimit64 = 302) => do_prlimit(pid: pid_t, resource: u32, new_limit: *const rlimit_t, old_limit: *mut rlimit_t),
 
@@ -683,7 +684,7 @@ async fn do_mmap(
 }
 
 async fn do_munmap(addr: usize, size: usize) -> Result<isize> {
-    vm::do_munmap(addr, size)?;
+    vm::do_munmap(addr, size).await?;
     Ok(0)
 }
 
@@ -695,7 +696,7 @@ async fn do_mremap(
     new_addr: usize,
 ) -> Result<isize> {
     let flags = MRemapFlags::from_raw(flags as u32, new_addr)?;
-    let addr = vm::do_mremap(old_addr, old_size, new_size, flags)?;
+    let addr = vm::do_mremap(old_addr, old_size, new_size, flags).await?;
     Ok(addr as isize)
 }
 
@@ -757,7 +758,7 @@ async fn do_clock_getres(clockid: clockid_t, res_u: *mut timespec_t) -> Result<i
 }
 
 // TODO: handle remainder
-fn do_nanosleep(req_u: *const timespec_t, rem_u: *mut timespec_t) -> Result<isize> {
+async fn do_nanosleep(req_u: *const timespec_t, rem_u: *mut timespec_t) -> Result<isize> {
     let req = {
         check_ptr(req_u)?;
         timespec_t::from_raw_ptr(req_u)?

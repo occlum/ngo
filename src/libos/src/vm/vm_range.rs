@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Clone, Copy, Default, PartialEq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct VMRange {
     pub(super) start: usize,
     pub(super) end: usize,
@@ -82,6 +82,10 @@ impl VMRange {
         self.start() <= other.start() && other.end() <= self.end()
     }
 
+    pub fn is_subset_of(&self, other: &VMRange) -> bool {
+        other.start() <= self.start() && self.end() <= other.end()
+    }
+
     pub fn contains(&self, addr: usize) -> bool {
         self.start() <= addr && addr < self.end()
     }
@@ -130,7 +134,10 @@ impl VMRange {
     pub fn intersect(&self, other: &VMRange) -> Option<VMRange> {
         let intersection_start = self.start().max(other.start());
         let intersection_end = self.end().min(other.end());
-        if intersection_start > intersection_end {
+        if intersection_start > intersection_end
+            || self.start() == other.end()
+            || self.end() == other.start()
+        {
             return None;
         }
         unsafe {
@@ -151,6 +158,15 @@ impl VMRange {
         let buf_ptr = self.start() as *mut u8;
         let buf_size = self.size() as usize;
         std::slice::from_raw_parts_mut(buf_ptr, buf_size)
+    }
+
+    pub fn clean(&self) -> Result<()> {
+        let buf = unsafe { self.as_slice_mut() };
+        //buf.iter_mut().for_each(|b| *b = 0);
+        for b in &mut buf[..] {
+            *b = 0;
+        }
+        Ok(())
     }
 }
 
