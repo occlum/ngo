@@ -33,6 +33,7 @@ vdso-time  = { path = "crates/vdso-time", default-features = false, features = [
 inherit-methods-macro= { path = "crates/inherit-methods-macro" }
 io-uring-callback = { path = "crates/io-uring-callback", features = ["sgx"] }
 host-socket  = { path = "crates/host-socket", default-features = false, features = ["sgx"] }
+sgx-untrusted-alloc = { path = "crates/sgx-untrusted-alloc" }
 
 [patch.'https://github.com/apache/teaclave-sgx-sdk.git']
 sgx_tstd = { path = "../../deps/rust-sgx-sdk/sgx_tstd" }
