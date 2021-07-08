@@ -118,7 +118,7 @@ use crate::io_handle::IoToken;
 mod io_handle;
 
 pub use crate::io_handle::{IoHandle, IoState};
-pub use io_uring::opcode::types::{Fd, RwFlags};
+pub use io_uring::opcode::types::{Fd, RwFlags, TimeoutFlags};
 
 /// An io_uring instance.
 ///
@@ -351,6 +351,40 @@ impl IoUring {
         self.push_entry(entry, callback)
     }
 
+    /// Push a timeout request into the submission queue of the io_uring.
+    ///
+    /// # Safety
+    ///
+    /// See the safety section of the `IoUring`.
+    pub unsafe fn timeout(
+        &self,
+        timespec: *const types::Timespec,
+        count: u32,
+        flags: types::TimeoutFlags,
+        callback: impl FnOnce(i32) + Send + 'static,
+    ) -> IoHandle {
+        let entry = opcode::Timeout::new(timespec)
+            .count(count)
+            .flags(flags)
+            .build();
+        self.push_entry(entry, callback)
+    }
+
+    /// Push a timeout_remove request into the submission queue of the io_uring.
+    ///
+    /// # Safety
+    ///
+    /// See the safety section of the `IoUring`.
+    pub unsafe fn timeout_remove(
+        &self,
+        user_data: u64,
+        flags: types::TimeoutFlags,
+        callback: impl FnOnce(i32) + Send + 'static,
+    ) -> IoHandle {
+        let entry = opcode::TimeoutRemove::new(user_data).flags(flags).build();
+        self.push_entry(entry, callback)
+    }
+
     /// Push a async_cancel request into the submission queue of the io_uring.
     ///
     /// # Safety
@@ -530,6 +564,7 @@ mod tests {
     use std::io::{IoSlice, IoSliceMut};
     use std::os::unix::io::AsRawFd;
     use std::sync::{Arc, Mutex};
+    use std::time::Instant;
 
     #[test]
     fn it_works() {
@@ -630,6 +665,72 @@ mod tests {
             assert_eq!(retval, -(Errno::ENOENT as i32));
         };
         let _handle = unsafe { io_uring.async_cancel(100, complete_fn) };
+        io_uring.submit_requests();
+        io_uring.wait_completions();
+    }
+
+    #[test]
+    fn test_timeout() {
+        let io_uring = IoUring::new(io_uring::IoUring::new(256).unwrap());
+
+        let start = Instant::now();
+        let secs = 1;
+        let timespec = types::Timespec {
+            tv_sec: secs,
+            tv_nsec: 0,
+        };
+        let complete_fn = move |retval: i32| {
+            assert_eq!(retval, -(Errno::ETIME as i32));
+            assert_eq!(start.elapsed().as_secs(), secs as u64);
+        };
+
+        let _handle = unsafe {
+            io_uring.timeout(
+                &timespec as *const _,
+                0,
+                types::TimeoutFlags::empty(),
+                complete_fn,
+            )
+        };
+        io_uring.submit_requests();
+        io_uring.wait_completions();
+    }
+
+    #[test]
+    fn test_timeout_remove() {
+        let io_uring = IoUring::new(io_uring::IoUring::new(256).unwrap());
+
+        let start = Instant::now();
+        let secs = 1;
+        let timespec = types::Timespec {
+            tv_sec: secs,
+            tv_nsec: 0,
+        };
+
+        let timeout_complete_fn = move |retval: i32| {
+            assert_eq!(retval, -(Errno::ECANCELED as i32));
+            assert_eq!(start.elapsed().as_secs(), 0);
+        };
+
+        let timeout_handle = unsafe {
+            io_uring.timeout(
+                &timespec as *const _,
+                0,
+                types::TimeoutFlags::empty(),
+                timeout_complete_fn,
+            )
+        };
+        io_uring.submit_requests();
+
+        let remove_complete_fn = move |retval: i32| {
+            assert_eq!(retval, 0);
+        };
+
+        let user_data = timeout_handle.user_data();
+        let _handle = unsafe {
+            io_uring.timeout_remove(user_data, types::TimeoutFlags::empty(), remove_complete_fn)
+        };
+
         io_uring.submit_requests();
         io_uring.wait_completions();
     }
