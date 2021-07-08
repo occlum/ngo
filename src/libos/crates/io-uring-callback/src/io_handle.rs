@@ -11,6 +11,10 @@ cfg_if::cfg_if! {
     }
 }
 
+use errno::Errno;
+
+use crate::IoUring;
+
 /// The handle to an I/O request pushed to the submission queue of an io_uring instance.
 #[derive(Debug)]
 pub struct IoHandle(Arc<IoToken>);
@@ -22,9 +26,9 @@ pub enum IoState {
     Submitted,
     /// Completed with a return value.
     Completed(i32),
-    /// Cancelling (not used yet).
+    /// Cancelling.
     Cancelling,
-    /// Cancelled (not used yet).
+    /// Cancelled.
     Cancelled,
 }
 
@@ -44,10 +48,13 @@ impl IoHandle {
     }
 
     /// Cancel the I/O request.
-    ///
-    /// This is NOT implemented, yet.
-    pub fn cancel(&self) {
-        self.0.cancel()
+    pub fn cancel(&self, io_uring: &IoUring) {
+        self.0.cancel(io_uring)
+    }
+
+    /// returns the user_data of the I/O request.
+    pub fn user_data(&self) -> u64 {
+        self.0.user_data()
     }
 }
 
@@ -87,8 +94,8 @@ pub(crate) struct IoToken {
 }
 
 impl IoToken {
-    pub fn new(callback: impl FnOnce(i32) + Send + 'static) -> Self {
-        let inner = Mutex::new(Inner::new(callback));
+    pub fn new(callback: impl FnOnce(i32) + Send + 'static, user_data: u64) -> Self {
+        let inner = Mutex::new(Inner::new(callback, user_data));
         Self { inner }
     }
 
@@ -113,9 +120,14 @@ impl IoToken {
         (callback)(retval);
     }
 
-    pub fn cancel(&self) {
+    pub fn cancel(&self, io_uring: &IoUring) {
         let mut inner = self.inner.lock().unwrap();
-        inner.cancel()
+        inner.cancel(io_uring)
+    }
+
+    pub fn user_data(&self) -> u64 {
+        let inner = self.inner.lock().unwrap();
+        inner.user_data()
     }
 }
 
@@ -131,12 +143,13 @@ struct Inner {
     state: IoState,
     callback: Option<Callback>,
     waker: Option<Waker>,
+    user_data: u64,
 }
 
 type Callback = Box<dyn FnOnce(i32) + Send + 'static>;
 
 impl Inner {
-    pub fn new(callback: impl FnOnce(i32) + Send + 'static) -> Self {
+    pub fn new(callback: impl FnOnce(i32) + Send + 'static, user_data: u64) -> Self {
         let state = IoState::Submitted;
         let callback = Some(Box::new(callback) as _);
         let waker = None;
@@ -144,13 +157,24 @@ impl Inner {
             state,
             callback,
             waker,
+            user_data,
         }
     }
 
     pub fn complete(&mut self, retval: i32) -> Callback {
         match self.state {
-            IoState::Submitted | IoState::Cancelling => {
+            IoState::Submitted => {
                 self.state = IoState::Completed(retval);
+            }
+            IoState::Cancelling => {
+                if retval == -(Errno::ECANCELED as i32) {
+                    // case 1: The request was cancelled successfully.
+                    self.state = IoState::Cancelled;
+                } else {
+                    // case 2.1: The request was cancelled with error.
+                    // case 2.2: The request was not actually canceled.
+                    self.state = IoState::Completed(retval);
+                }
             }
             _ => {
                 unreachable!("cannot do complete twice or after cancelled");
@@ -160,8 +184,35 @@ impl Inner {
         self.callback.take().unwrap()
     }
 
-    pub fn cancel(&mut self) {
-        todo!("implement cancel in future")
+    pub fn cancel(&mut self, io_uring: &IoUring) {
+        match self.state {
+            IoState::Submitted => {
+                self.state = IoState::Cancelling;
+            }
+            _ => {
+                return;
+            }
+        }
+
+        // retval is not used yet.
+        let callback = move |retval: i32| {
+            // case1: found the I/O request before it got started.
+            if retval == 0 {
+            }
+            // case2: found the I/O request after it's already running.
+            else if retval == -(Errno::EALREADY as i32) {
+            }
+            // case3: not found the I/O request.
+            else if retval == -(Errno::ENOENT as i32) {
+            }
+        };
+
+        unsafe {
+            io_uring.async_cancel(self.user_data, callback);
+        }
+
+        // submit cancel request immediately.
+        io_uring.submit_requests();
     }
 
     pub fn retval(&self) -> Option<i32> {
@@ -173,5 +224,9 @@ impl Inner {
 
     pub fn state(&self) -> IoState {
         self.state
+    }
+
+    pub fn user_data(&self) -> u64 {
+        self.user_data
     }
 }

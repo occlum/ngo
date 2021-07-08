@@ -470,6 +470,7 @@ version = "0.1.0"
 dependencies = [
  "atomic",
  "cfg-if 1.0.0",
+ "errno",
  "futures",
  "io-uring",
  "lazy_static",

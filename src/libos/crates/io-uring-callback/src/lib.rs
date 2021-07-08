@@ -79,8 +79,7 @@
 //!
 //! First, as a future, `IoHandle` allows you to await on it, which is quite
 //! convenient if you happen to use io_uring with Rust's async/await.
-//! Second, `IoHandle` makes it possible to _cancel_ on-going
-//! I/O requests (although the `cancel` method of `IoHandle` is not implemented, yet).
+//! Second, `IoHandle` makes it possible to _cancel_ on-going I/O requests.
 //! Third, it makes the whole APIs less prone to memory safety issues. Recall that all I/O submitting
 //! methods (e.g., `write`, `accept`, etc.) are _unsafe_ as there are no guarantee that
 //! their arguments---like FDs or buffer pointers---are valid throughout the lifetime of
@@ -94,10 +93,10 @@
 #![feature(get_mut_unchecked)]
 #![cfg_attr(feature = "sgx", no_std)]
 
-#[cfg(feature = "sgx")] 
-extern crate sgx_tstd as std;
-#[cfg(feature = "sgx")] 
+#[cfg(feature = "sgx")]
 extern crate sgx_libc as libc;
+#[cfg(feature = "sgx")]
+extern crate sgx_tstd as std;
 
 use std::io;
 use std::sync::Arc;
@@ -161,7 +160,6 @@ impl IoUring {
     pub unsafe fn accept(
         &self,
         fd: Fd,
-        // fixed_fd: Fixed,
         addr: *mut libc::sockaddr,
         addrlen: *mut libc::socklen_t,
         flags: u32,
@@ -179,7 +177,6 @@ impl IoUring {
     pub unsafe fn connect(
         &self,
         fd: Fd,
-        // fixed_fd: Fixed,
         addr: *const libc::sockaddr,
         addrlen: libc::socklen_t,
         callback: impl FnOnce(i32) + Send + 'static,
@@ -196,7 +193,6 @@ impl IoUring {
     pub unsafe fn poll_add(
         &self,
         fd: Fd,
-        // fixed_fd: Fixed,
         flags: u32,
         callback: impl FnOnce(i32) + Send + 'static,
     ) -> IoHandle {
@@ -226,7 +222,6 @@ impl IoUring {
     pub unsafe fn read(
         &self,
         fd: Fd,
-        // fixed_fd: Fixed,
         buf: *mut u8,
         len: u32,
         offset: libc::off_t,
@@ -248,7 +243,6 @@ impl IoUring {
     pub unsafe fn write(
         &self,
         fd: Fd,
-        // fixed_fd: Fixed,
         buf: *const u8,
         len: u32,
         offset: libc::off_t,
@@ -270,7 +264,6 @@ impl IoUring {
     pub unsafe fn readv(
         &self,
         fd: Fd,
-        // fixed_fd: Fixed,
         iovec: *const libc::iovec,
         len: u32,
         offset: libc::off_t,
@@ -292,7 +285,6 @@ impl IoUring {
     pub unsafe fn writev(
         &self,
         fd: Fd,
-        // fixed_fd: Fixed,
         iovec: *const libc::iovec,
         len: u32,
         offset: libc::off_t,
@@ -314,7 +306,6 @@ impl IoUring {
     pub unsafe fn recvmsg(
         &self,
         fd: Fd,
-        // fixed_fd: Fixed,
         msg: *mut libc::msghdr,
         flags: u32,
         callback: impl FnOnce(i32) + Send + 'static,
@@ -331,7 +322,6 @@ impl IoUring {
     pub unsafe fn sendmsg(
         &self,
         fd: Fd,
-        // fixed_fd: Fixed,
         msg: *const libc::msghdr,
         flags: u32,
         callback: impl FnOnce(i32) + Send + 'static,
@@ -361,6 +351,20 @@ impl IoUring {
         self.push_entry(entry, callback)
     }
 
+    /// Push a async_cancel request into the submission queue of the io_uring.
+    ///
+    /// # Safety
+    ///
+    /// See the safety section of the `IoUring`.
+    pub unsafe fn async_cancel(
+        &self,
+        user_data: u64,
+        callback: impl FnOnce(i32) + Send + 'static,
+    ) -> IoHandle {
+        let entry = opcode::AsyncCancel::new(user_data).build();
+        self.push_entry(entry, callback)
+    }
+
     /// Submit all I/O requests in the submission queue of io_uring.
     ///
     /// Without calling this method, new I/O requests pushed into the submission queue will
@@ -385,6 +389,30 @@ impl IoUring {
                 token_table.remove(token_idx)
             };
             io_token.complete(retval);
+        }
+    }
+
+    /// Wait new I/O completions in the completions queue of io_uring.
+    ///
+    /// Upon receiving completed I/O, the corresponding user-registered callback functions
+    /// will get invoked and the `IoHandle` (as a `Future`) will become ready.
+    pub fn wait_completions(&self) {
+        let cq = self.ring.completion();
+        let mut should_ret = false;
+        loop {
+            while let Some(cqe) = cq.pop() {
+                let retval = cqe.result();
+                let io_token = {
+                    let token_idx = cqe.user_data() as usize;
+                    let mut token_table = self.token_table.lock().unwrap();
+                    token_table.remove(token_idx)
+                };
+                io_token.complete(retval);
+                should_ret = true;
+            }
+            if should_ret {
+                return;
+            }
         }
     }
 
@@ -425,7 +453,7 @@ impl IoUring {
             let mut token_table = self.token_table.lock().unwrap();
             let token_slot = token_table.vacant_entry();
             let token_key = token_slot.key() as u64;
-            let token = Arc::new(IoToken::new(callback));
+            let token = Arc::new(IoToken::new(callback, token_key));
             token_slot.insert(token.clone());
             let handle = IoHandle::new(token);
 
@@ -444,7 +472,10 @@ impl IoUring {
 
     /// Cancel all ongoing async I/O.
     pub fn cancel_all(&self) {
-        todo!("implement cancel in the future");
+        let mut token_table = self.token_table.lock().unwrap();
+        for token in token_table.drain() {
+            token.cancel(self);
+        }
     }
 }
 
@@ -495,6 +526,7 @@ impl Builder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use errno::Errno;
     use std::io::{IoSlice, IoSliceMut};
     use std::os::unix::io::AsRawFd;
     use std::sync::{Arc, Mutex};
@@ -588,5 +620,17 @@ mod tests {
                 break;
             }
         }
+    }
+
+    #[test]
+    fn test_cancel() {
+        let io_uring = IoUring::new(io_uring::IoUring::new(256).unwrap());
+
+        let complete_fn = move |retval: i32| {
+            assert_eq!(retval, -(Errno::ENOENT as i32));
+        };
+        let _handle = unsafe { io_uring.async_cancel(100, complete_fn) };
+        io_uring.submit_requests();
+        io_uring.wait_completions();
     }
 }
