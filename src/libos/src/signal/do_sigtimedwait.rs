@@ -12,9 +12,9 @@ pub async fn do_sigtimedwait(interest: SigSet, timeout: Option<&Duration>) -> Re
         "do_rt_sigtimedwait: interest: {:?}, timeout: {:?}",
         interest, timeout,
     );
-    // TODO: support timeout
+
     if let Some(timeout) = timeout {
-        warn!("do not support timeout yet");
+        crate::time::do_timeout(timeout);
     }
 
     let thread = current!();

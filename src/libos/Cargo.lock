@@ -28,6 +28,7 @@ dependencies = [
  "ringbuf",
  "serde",
  "serde_json",
+ "sgx-untrusted-alloc",
  "sgx_cov",
  "sgx_tcrypto",
  "sgx_trts",
@@ -470,6 +471,7 @@ version = "0.1.0"
 dependencies = [
  "atomic",
  "cfg-if 1.0.0",
+ "errno",
  "futures",
  "io-uring",
  "lazy_static",
@@ -873,6 +875,7 @@ name = "sgx-untrusted-alloc"
 version = "0.1.0"
 dependencies = [
  "cfg-if 1.0.0",
+ "libc",
  "sgx_libc",
  "sgx_trts",
  "sgx_tstd",

@@ -4,6 +4,7 @@ use core::convert::TryFrom;
 use process::pid_t;
 use rcore_fs::dev::TimeProvider;
 use rcore_fs::vfs::Timespec;
+use sgx_untrusted_alloc::UntrustedBox;
 use std::time::Duration;
 use std::{fmt, u64};
 use vdso_time::Vdso;
@@ -282,4 +283,25 @@ impl TimeProvider for OcclumTimeProvider {
             nsec: time.usec as i32 * 1000,
         }
     }
+}
+
+pub async fn do_timeout(timeout: &Duration) {
+    let mut untrusted_ts = UntrustedBox::new_uninit();
+    *untrusted_ts = libc::timespec {
+        tv_sec: timeout.as_secs() as i64,
+        tv_nsec: timeout.subsec_nanos() as i64,
+    };
+    let io_uring = &crate::io_uring::SINGLETON;
+    let complete_fn = move |retval: i32| {
+        debug_assert!(retval == -(Errno::ETIME as i32));
+    };
+    let handle = unsafe {
+        io_uring.timeout(
+            untrusted_ts.as_ptr() as *const _,
+            0,
+            io_uring_callback::TimeoutFlags::empty(),
+            complete_fn,
+        )
+    };
+    handle.await;
 }
