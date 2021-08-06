@@ -77,10 +77,10 @@ pub async fn do_clone(
         }
     }
 
-    async_rt::task::spawn(crate::entry::thread::main_loop(
-        new_thread_ref,
-        init_cpu_state,
-    ));
+    async_rt::task::spawn(
+        crate::entry::thread::main_loop(new_thread_ref, init_cpu_state),
+        None,
+    );
     Ok(new_tid)
 }
 

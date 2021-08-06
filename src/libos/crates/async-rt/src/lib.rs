@@ -37,19 +37,25 @@ mod tests {
 
     #[test]
     fn test_hello() {
-        crate::task::block_on(async {
-            let tid = crate::task::current::get().tid();
-            println!("Hello from task {:?}", tid);
-        });
+        crate::task::block_on(
+            async {
+                let tid = crate::task::current::get().tid();
+                println!("Hello from task {:?}", tid);
+            },
+            None,
+        );
     }
 
     #[test]
     fn test_yield() {
-        crate::task::block_on(async {
-            for _ in 0..100 {
-                crate::sched::yield_().await;
-            }
-        });
+        crate::task::block_on(
+            async {
+                for _ in 0..100 {
+                    crate::sched::yield_().await;
+                }
+            },
+            None,
+        );
     }
 
     #[test]
@@ -60,58 +66,70 @@ mod tests {
             static COUNT: Cell<u32> = Cell::new(0);
         }
 
-        crate::task::block_on(async {
-            for _ in 0..100 {
-                COUNT.with(|count| {
-                    count.set(count.get() + 1);
-                })
-            }
-            assert!(COUNT.with(|count| count.get()) == 100);
-        });
+        crate::task::block_on(
+            async {
+                for _ in 0..100 {
+                    COUNT.with(|count| {
+                        count.set(count.get() + 1);
+                    })
+                }
+                assert!(COUNT.with(|count| count.get()) == 100);
+            },
+            None,
+        );
     }
 
     #[test]
     fn test_spawn_and_join() {
-        crate::task::block_on(async {
-            use crate::task::JoinHandle;
-            let mut join_handles: Vec<JoinHandle<i32>> = (0..10)
-                .map(|i| {
-                    crate::task::spawn(async move {
-                        crate::sched::yield_().await;
-                        i
+        crate::task::block_on(
+            async {
+                use crate::task::JoinHandle;
+                let mut join_handles: Vec<JoinHandle<i32>> = (0..10)
+                    .map(|i| {
+                        crate::task::spawn(
+                            async move {
+                                crate::sched::yield_().await;
+                                i
+                            },
+                            None,
+                        )
                     })
-                })
-                .collect();
+                    .collect();
 
-            for (i, join_handle) in join_handles.iter_mut().enumerate() {
-                assert!(join_handle.await == (i as i32));
-            }
-        });
+                for (i, join_handle) in join_handles.iter_mut().enumerate() {
+                    assert!(join_handle.await == (i as i32));
+                }
+            },
+            None,
+        );
     }
 
     #[test]
     fn test_affinity() {
-        crate::task::block_on(async {
-            use crate::sched::Affinity;
+        crate::task::block_on(
+            async {
+                use crate::sched::Affinity;
 
-            let current = crate::task::current::get();
+                let current = crate::task::current::get();
 
-            let mut affinity = current.sched_info().affinity().write();
-            assert!(affinity.is_full());
+                let mut affinity = current.sched_info().affinity().write();
+                assert!(affinity.is_full());
 
-            let new_affinity = {
-                let mut new_affinity = Affinity::new_empty();
-                new_affinity.set(1, true);
-                new_affinity
-            };
-            *affinity = new_affinity.clone();
-            drop(affinity);
+                let new_affinity = {
+                    let mut new_affinity = Affinity::new_empty();
+                    new_affinity.set(1, true);
+                    new_affinity
+                };
+                *affinity = new_affinity.clone();
+                drop(affinity);
 
-            // The new affinity will take effect after the next scheduling
-            crate::sched::yield_().await;
+                // The new affinity will take effect after the next scheduling
+                crate::sched::yield_().await;
 
-            assert!(*current.sched_info().affinity().read() == new_affinity);
-        });
+                assert!(*current.sched_info().affinity().read() == new_affinity);
+            },
+            None,
+        );
     }
 
     #[ctor::ctor]

@@ -39,6 +39,7 @@ impl Parks {
 
         let mut sleep_thread = self.sleep_threads[thread_id].lock();
         let thread = sleep_thread.take();
+        drop(sleep_thread);
         if thread.is_some() {
             thread.unwrap().unpark();
         }

@@ -8,7 +8,7 @@ pub async fn do_sched_yield() -> Result<isize> {
     Ok(0)
 }
 
-pub fn do_sched_getaffinity(pid: pid_t, buf_size: size_t, buf_ptr: *mut u8) -> Result<isize> {
+pub async fn do_sched_getaffinity(pid: pid_t, buf_size: size_t, buf_ptr: *mut u8) -> Result<isize> {
     // Construct safe Rust types
     let buf_size = {
         if buf_size * 8 < AVAIL_CPUSET.cpu_count() {
@@ -37,7 +37,11 @@ pub fn do_sched_getaffinity(pid: pid_t, buf_size: size_t, buf_ptr: *mut u8) -> R
     Ok(CpuSet::len() as isize)
 }
 
-pub fn do_sched_setaffinity(pid: pid_t, buf_size: size_t, buf_ptr: *const u8) -> Result<isize> {
+pub async fn do_sched_setaffinity(
+    pid: pid_t,
+    buf_size: size_t,
+    buf_ptr: *const u8,
+) -> Result<isize> {
     // Convert unsafe C types into safe Rust types
     let buf_size = {
         if buf_size * 8 < AVAIL_CPUSET.cpu_count() {
@@ -58,7 +62,7 @@ pub fn do_sched_setaffinity(pid: pid_t, buf_size: size_t, buf_ptr: *const u8) ->
     Ok(0)
 }
 
-pub fn do_getcpu(cpu_ptr: *mut u32, node_ptr: *mut u32) -> Result<isize> {
+pub async fn do_getcpu(cpu_ptr: *mut u32, node_ptr: *mut u32) -> Result<isize> {
     // Do pointers check
     match (cpu_ptr.is_null(), node_ptr.is_null()) {
         (true, true) => return Ok(0),

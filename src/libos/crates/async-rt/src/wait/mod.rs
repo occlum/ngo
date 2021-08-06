@@ -74,30 +74,39 @@ mod tests {
 
     #[test]
     fn produce_and_consume() {
-        crate::task::block_on(async {
-            const QUEUE_LEN: usize = 4;
-            let queue = Arc::new(Queue::<usize>::with_capacity(QUEUE_LEN));
-            let num_items: usize = 1024;
+        crate::task::block_on(
+            async {
+                const QUEUE_LEN: usize = 4;
+                let queue = Arc::new(Queue::<usize>::with_capacity(QUEUE_LEN));
+                let num_items: usize = 1024;
 
-            let producer_task = {
-                let queue = queue.clone();
-                crate::task::spawn(async move {
-                    for i in 0..num_items {
-                        queue.produce(i).await;
-                    }
-                })
-            };
-            let consumer_task = {
-                let queue = queue.clone();
-                crate::task::spawn(async move {
-                    for i in 0..num_items {
-                        assert!(queue.consume().await == i);
-                    }
-                })
-            };
+                let producer_task = {
+                    let queue = queue.clone();
+                    crate::task::spawn(
+                        async move {
+                            for i in 0..num_items {
+                                queue.produce(i).await;
+                            }
+                        },
+                        None,
+                    )
+                };
+                let consumer_task = {
+                    let queue = queue.clone();
+                    crate::task::spawn(
+                        async move {
+                            for i in 0..num_items {
+                                assert!(queue.consume().await == i);
+                            }
+                        },
+                        None,
+                    )
+                };
 
-            producer_task.await;
-            consumer_task.await;
-        });
+                producer_task.await;
+                consumer_task.await;
+            },
+            None,
+        );
     }
 }

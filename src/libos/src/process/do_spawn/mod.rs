@@ -86,10 +86,10 @@ fn do_spawn_common(
     let new_main_thread = new_process_ref
         .main_thread()
         .expect("the main thread is just created; it must exist");
-    async_rt::task::spawn(crate::entry::thread::main_loop(
-        new_main_thread,
-        init_cpu_state,
-    ));
+    async_rt::task::spawn(
+        crate::entry::thread::main_loop(new_main_thread, init_cpu_state),
+        None,
+    );
 
     let new_pid = new_process_ref.pid();
     Ok(new_pid)

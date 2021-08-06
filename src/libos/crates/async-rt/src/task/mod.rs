@@ -3,6 +3,7 @@ use core::future::Future;
 
 use crate::executor::EXECUTOR;
 use crate::prelude::*;
+use crate::sched::SchedPriority;
 
 pub use self::id::TaskId;
 pub use self::join::JoinHandle;
@@ -17,7 +18,10 @@ mod join;
 mod locals;
 mod task;
 
-pub fn spawn<T: Send + 'static>(future: impl Future<Output = T> + 'static + Send) -> JoinHandle<T> {
+pub fn spawn<T: Send + 'static>(
+    future: impl Future<Output = T> + 'static + Send,
+    priority: Option<SchedPriority>,
+) -> JoinHandle<T> {
     #[cfg(any(test, feature = "auto_run"))]
     init_runner_threads();
 
@@ -26,12 +30,15 @@ pub fn spawn<T: Send + 'static>(future: impl Future<Output = T> + 'static + Send
         let output = future.await;
         output_handle.set(output);
     };
-    let task = Arc::new(Task::new(future));
+    let task = Arc::new(Task::new(future, priority));
     EXECUTOR.accept_task(task);
     join_handle
 }
 
-pub fn block_on<T: Send + 'static>(future: impl Future<Output = T> + 'static + Send) -> T {
+pub fn block_on<T: Send + 'static>(
+    future: impl Future<Output = T> + 'static + Send,
+    priority: Option<SchedPriority>,
+) -> T {
     #[cfg(any(test, feature = "auto_run"))]
     init_runner_threads();
 
@@ -51,7 +58,7 @@ pub fn block_on<T: Send + 'static>(future: impl Future<Output = T> + 'static + S
         }
     };
 
-    let task = Arc::new(Task::new(future));
+    let task = Arc::new(Task::new(future, priority));
     EXECUTOR.accept_task(task);
     while !completed.load(Ordering::Acquire) {}
 

@@ -5,7 +5,7 @@ use futures::task::ArcWake;
 
 use crate::executor::EXECUTOR;
 use crate::prelude::*;
-use crate::sched::SchedInfo;
+use crate::sched::{SchedInfo, SchedPriority};
 use crate::task::{LocalsMap, TaskId};
 
 pub struct Task {
@@ -16,9 +16,12 @@ pub struct Task {
 }
 
 impl Task {
-    pub fn new(future: impl Future<Output = ()> + 'static + Send) -> Self {
+    pub fn new(
+        future: impl Future<Output = ()> + 'static + Send,
+        priority: Option<SchedPriority>,
+    ) -> Self {
         let tid = TaskId::new();
-        let sched_info = SchedInfo::new();
+        let sched_info = SchedInfo::new(priority.unwrap_or(SchedPriority::Normal));
         let future = Mutex::new(Some(future.boxed()));
         let locals = LocalsMap::new();
         Self {
