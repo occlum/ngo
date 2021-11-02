@@ -163,7 +163,7 @@ fn mount_nonroot_fs_according_to(mount_config: &Vec<ConfigMount>, root: &MNode) 
     Ok(())
 }
 
-fn mount_fs_at(fs: Arc<dyn FileSystem>, parent_inode: &MNode, abs_path: &Path) -> Result<()> {
+pub fn mount_fs_at(fs: Arc<dyn FileSystem>, parent_inode: &MNode, abs_path: &Path) -> Result<()> {
     let mut mount_dir = parent_inode.find(false, ".")?;
     // The first component of abs_path is the RootDir, skip it.
     for dirname in abs_path.iter().skip(1) {
