@@ -4,6 +4,7 @@ use std::intrinsics::atomic_load;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
+use async_rt::sched::yield_;
 use async_rt::wait::{Waiter, Waker};
 
 use crate::prelude::*;
@@ -157,12 +158,15 @@ pub async fn futex_wait_bitset(
 }
 
 /// Do futex wake
-pub fn futex_wake(futex_addr: *const i32, max_count: usize) -> Result<usize> {
-    futex_wake_bitset(futex_addr, max_count, FUTEX_BITSET_MATCH_ANY)
+pub async fn futex_wake(futex_addr: *const i32, max_count: usize) -> Result<usize> {
+    futex_wake_bitset(futex_addr, max_count, FUTEX_BITSET_MATCH_ANY).await
 }
 
-/// Do futex wake with bitset
-pub fn futex_wake_bitset(futex_addr: *const i32, max_count: usize, bitset: u32) -> Result<usize> {
+pub fn futex_wake_sync(futex_addr: *const i32, max_count: usize) -> Result<usize> {
+    futex_wake_bitset_sync(futex_addr, max_count, FUTEX_BITSET_MATCH_ANY)
+}
+
+fn futex_wake_bitset_sync(futex_addr: *const i32, max_count: usize, bitset: u32) -> Result<usize> {
     debug!(
         "futex_wake_bitset addr: {:#x}, max_count: {}, bitset: {:#x}",
         futex_addr as usize, max_count, bitset
@@ -178,15 +182,26 @@ pub fn futex_wake_bitset(futex_addr: *const i32, max_count: usize, bitset: u32) 
     Ok(count)
 }
 
+/// Do futex wake with bitset
+pub async fn futex_wake_bitset(
+    futex_addr: *const i32,
+    max_count: usize,
+    bitset: u32,
+) -> Result<usize> {
+    let count = futex_wake_bitset_sync(futex_addr, max_count, bitset);
+    yield_().await;
+    count
+}
+
 /// Do futex requeue
-pub fn futex_requeue(
+pub async fn futex_requeue(
     futex_addr: *const i32,
     max_nwakes: usize,
     max_nrequeues: usize,
     futex_new_addr: *const i32,
 ) -> Result<usize> {
     if futex_new_addr == futex_addr {
-        return futex_wake(futex_addr, max_nwakes);
+        return futex_wake(futex_addr, max_nwakes).await;
     }
     let futex_key = FutexKey::new(futex_addr);
     let futex_new_key = FutexKey::new(futex_new_addr);

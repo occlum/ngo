@@ -1,7 +1,7 @@
 use std::intrinsics::atomic_store;
 use std::sync::Weak;
 
-use super::do_futex::futex_wake;
+use super::do_futex::futex_wake_sync;
 use super::process::{Process, ProcessFilter};
 use super::{table, ProcessRef, TermStatus, ThreadRef, ThreadStatus};
 use crate::prelude::*;
@@ -42,7 +42,8 @@ fn exit_thread(term_status: TermStatus) {
         unsafe {
             atomic_store(ctid_ptr.as_ptr(), 0);
         }
-        futex_wake(ctid_ptr.as_ptr() as *const i32, 1);
+
+        futex_wake_sync(ctid_ptr.as_ptr() as *const i32, 1);
     }
 
     // Notify waiters that the owner of robust futex has died.

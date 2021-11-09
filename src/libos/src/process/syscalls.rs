@@ -326,11 +326,14 @@ pub async fn do_futex(
         }
         FutexOp::FUTEX_WAKE => {
             let max_count = get_futex_val(futex_val)?;
-            super::do_futex::futex_wake(futex_addr, max_count).map(|count| count as isize)
+            super::do_futex::futex_wake(futex_addr, max_count)
+                .await
+                .map(|count| count as isize)
         }
         FutexOp::FUTEX_WAKE_BITSET => {
             let max_count = get_futex_val(futex_val)?;
             super::do_futex::futex_wake_bitset(futex_addr, max_count, bitset)
+                .await
                 .map(|count| count as isize)
         }
         FutexOp::FUTEX_REQUEUE => {
@@ -338,6 +341,7 @@ pub async fn do_futex(
             let max_nwakes = get_futex_val(futex_val)?;
             let max_nrequeues = get_futex_val(timeout as i32)?;
             super::do_futex::futex_requeue(futex_addr, max_nwakes, max_nrequeues, futex_new_addr)
+                .await
                 .map(|nwakes| nwakes as isize)
         }
         _ => return_errno!(ENOSYS, "the futex operation is not supported"),

@@ -187,7 +187,7 @@ pub fn wake_robust_futex(futex_addr: *const i32, tid: pid_t) -> Result<()> {
         // Wakeup one waiter
         if futex_val.load(Ordering::SeqCst) & FUTEX_WAITERS != 0 {
             debug!("wake robust futex addr: {:?}", futex_addr);
-            super::do_futex::futex_wake(futex_addr, 1)?;
+            super::do_futex::futex_wake_sync(futex_addr, 1)?;
         }
         break;
     }
