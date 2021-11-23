@@ -2,6 +2,7 @@ use std::mem::{self, MaybeUninit};
 
 use crate::prelude::*;
 
+use super::trusted_uds::TrustedAddr;
 pub use async_io::socket::{Addr, CSockAddr, Domain, Ipv4Addr, Ipv4SocketAddr, UnixAddr};
 use num_enum::IntoPrimitive;
 
@@ -9,6 +10,7 @@ use num_enum::IntoPrimitive;
 pub enum AnyAddr {
     Ipv4(Ipv4SocketAddr),
     Unix(UnixAddr),
+    TrustedUnix(TrustedAddr),
     Unspec,
 }
 
@@ -20,8 +22,12 @@ impl AnyAddr {
                 Self::Ipv4(ipv4_addr)
             }
             libc::AF_UNIX | libc::AF_LOCAL => {
-                let unix_addr = UnixAddr::from_c_storage(c_addr, c_addr_len)?;
-                Self::Unix(unix_addr)
+                // TODO: Re-enable untrusted Unix domain socket
+                // let unix_addr = UnixAddr::from_c_storage(c_addr, c_addr_len)?;
+                // Self::Unix(unix_addr)
+
+                let trusted_addr = TrustedAddr::from_c_storage(c_addr, c_addr_len)?;
+                Self::TrustedUnix(trusted_addr)
             }
             libc::AF_UNSPEC => Self::Unspec,
             _ => {
@@ -35,6 +41,7 @@ impl AnyAddr {
         match self {
             Self::Ipv4(ipv4_addr) => ipv4_addr.to_c_storage(),
             Self::Unix(unix_addr) => unix_addr.to_c_storage(),
+            Self::TrustedUnix(trusted_addr) => trusted_addr.to_c_storage(),
             Self::Unspec => {
                 let mut sockaddr_storage =
                     unsafe { MaybeUninit::<libc::sockaddr_storage>::uninit().assume_init() };
@@ -58,6 +65,13 @@ impl AnyAddr {
         }
     }
 
+    pub fn as_trusted_unix(&self) -> Option<&TrustedAddr> {
+        match self {
+            Self::TrustedUnix(trusted_addr) => Some(trusted_addr),
+            _ => None,
+        }
+    }
+
     pub fn to_ipv4(&self) -> Result<&Ipv4SocketAddr> {
         match self {
             Self::Ipv4(ipv4_addr) => Ok(ipv4_addr),
@@ -68,6 +82,13 @@ impl AnyAddr {
     pub fn to_unix(&self) -> Result<&UnixAddr> {
         match self {
             Self::Unix(unix_addr) => Ok(unix_addr),
+            _ => return_errno!(EAFNOSUPPORT, "not unix address"),
+        }
+    }
+
+    pub fn to_trusted_unix(&self) -> Result<&TrustedAddr> {
+        match self {
+            Self::TrustedUnix(trusted_addr) => Ok(trusted_addr),
             _ => return_errno!(EAFNOSUPPORT, "not unix address"),
         }
     }

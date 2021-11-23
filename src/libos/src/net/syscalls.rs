@@ -110,7 +110,22 @@ pub async fn do_bind(
     let addr = {
         let addr_len = addr_len as usize;
         let sockaddr_storage = copy_sock_addr_from_user(addr, addr_len)?;
-        AnyAddr::from_c_storage(&sockaddr_storage, addr_len)?
+        let mut addr = AnyAddr::from_c_storage(&sockaddr_storage, addr_len)?;
+
+        // Handle special cases
+        match addr {
+            AnyAddr::TrustedUnix(ref mut trusted_addr) => trusted_addr.bind_addr()?,
+            // TODO: Untrusted unix socket
+            // AnyAddr::Unix(ref mut unix_addr) => {
+            //     if let UnixAddr::Pathname(ref mut path_str) = unix_addr {
+            //         if let Some(host_path) = path_str.strip_prefix("/host") {
+            //             *path_str = host_path.to_owned()
+            //         }
+            //     }
+            // },
+            _ => (),
+        }
+        addr
     };
 
     socket_file.bind(&addr)?;

@@ -301,6 +301,8 @@ int test_sendmsg_recvmsg_connectionless() {
     ret = server_connectionless_recvmsg();
     if (ret < 0) { return -1; }
 
+    // Sleep a second here to test read end blocking
+    sleep(1);
     write(server_sync_fd, SYNC_MSG, strlen(SYNC_MSG));
 
     ret = wait_for_child_exit(child_pid);

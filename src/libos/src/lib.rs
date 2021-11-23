@@ -25,6 +25,7 @@
 #![feature(test)]
 #![feature(atomic_from_mut)]
 #![feature(thread_local)]
+#![feature(result_cloned)]
 
 #[macro_use]
 extern crate async_rt;
