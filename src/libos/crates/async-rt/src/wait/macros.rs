@@ -114,12 +114,15 @@ macro_rules! waiter_loop {
                         // Wait until being woken by the waiter queue or reach timeout
                         let timeout: &mut core::time::Duration = (*timeout).borrow_mut();
                         if let Err(e) = waiter.wait_timeout(Some(timeout)).await {
-                            // The timeout expired, exit loop.
+                            // The timeout expired or interrupted, exit loop.
                             break Err(e);
                         }
                     } else {
                         // Wait until being woken by the waiter queue
-                        waiter.wait().await;
+                        if let Err(e) = waiter.wait().await {
+                            // Interrupted, exit loop.
+                            break Err(e);
+                        }
                     }
                     // Prepare the waiter so that we can try the loop body again
                     waiter.reset();

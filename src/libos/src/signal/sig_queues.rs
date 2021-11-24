@@ -1,19 +1,21 @@
 use std::collections::VecDeque;
 use std::fmt;
 
+use async_rt::wait::Signal as SigCount;
+
 use super::constants::*;
 use super::{SigNum, SigSet, Signal};
 use crate::prelude::*;
 
 pub struct SigQueues {
-    count: usize,
+    count: Arc<SigCount>,
     std_queues: Vec<Option<Box<dyn Signal>>>,
     rt_queues: Vec<VecDeque<Box<dyn Signal>>>,
 }
 
 impl SigQueues {
     pub fn new() -> Self {
-        let count = 0;
+        let count = Arc::new(SigCount::new());
         let std_queues = (0..COUNT_STD_SIGS).map(|_| None).collect();
         let rt_queues = (0..COUNT_RT_SIGS).map(|_| Default::default()).collect();
         SigQueues {
@@ -23,8 +25,12 @@ impl SigQueues {
         }
     }
 
+    pub fn count(&self) -> Arc<SigCount> {
+        self.count.clone()
+    }
+
     pub fn empty(&self) -> bool {
-        self.count == 0
+        self.count.empty()
     }
 
     pub fn enqueue(&mut self, signal: Box<dyn Signal>) {
@@ -49,12 +55,12 @@ impl SigQueues {
                 return;
             }
             *queue = Some(signal);
-            self.count += 1;
+            self.count.produce();
         } else {
             // Real-time signals
             let queue = self.get_rt_queue_mut(signum);
             queue.push_back(signal);
-            self.count += 1;
+            self.count.produce();
         }
     }
 
@@ -89,7 +95,7 @@ impl SigQueues {
             let queue = self.get_std_queue_mut(signum);
             let signal = queue.take();
             if signal.is_some() {
-                self.count -= 1;
+                self.count.consume();
                 return signal;
             }
         }
@@ -111,7 +117,7 @@ impl SigQueues {
             let queue = self.get_rt_queue_mut(signum);
             let signal = queue.pop_front();
             if signal.is_some() {
-                self.count -= 1;
+                self.count.consume();
                 return signal;
             }
         }

@@ -1,8 +1,10 @@
 mod macros;
+mod signal;
 mod waiter;
 mod waiter_queue;
 
 pub use self::macros::AutoWaiter;
+pub use self::signal::Signal;
 pub use self::waiter::{Waiter, Waker};
 pub use self::waiter_queue::WaiterQueue;
 

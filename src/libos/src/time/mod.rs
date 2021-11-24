@@ -148,11 +148,7 @@ pub fn do_clock_getres(clockid: ClockId) -> Result<timespec_t> {
 pub async fn do_nanosleep(req: &timespec_t, rem: Option<&mut timespec_t>) -> Result<()> {
     let waiter = Waiter::new();
     let mut duration = Duration::new(req.sec as u64, req.nsec as u32);
-    if let Ok(_) = waiter.wait_timeout(Some(&mut duration)).await {
-        // TODO: support interrupt sleep.
-        // return_errno!(EINTR, "sleep interrupted");
-        unreachable!("this waiter can not be interrupted");
-    }
+    let ret = waiter.wait_timeout(Some(&mut duration)).await;
 
     if let Some(rem) = rem {
         // wait_timeout() can guarantee that rem <= req.
@@ -161,7 +157,20 @@ pub async fn do_nanosleep(req: &timespec_t, rem: Option<&mut timespec_t>) -> Res
             nsec: duration.subsec_nanos() as i64,
         };
     }
-    Ok(())
+
+    if let Err(e) = ret {
+        match e.errno() {
+            EINTR => {
+                return_errno!(EINTR, "the waiter interrupted");
+            }
+            ETIMEDOUT => {
+                return Ok(());
+            }
+            _ => {}
+        }
+    }
+
+    unreachable!("this waiter only supports EINTR and ETIMEDOUT");
 }
 
 pub fn do_thread_getcpuclock() -> Result<timespec_t> {

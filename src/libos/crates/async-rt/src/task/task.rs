@@ -6,6 +6,7 @@ use crate::executor::EXECUTOR;
 use crate::prelude::*;
 use crate::sched::{SchedInfo, SchedPriority};
 use crate::task::{LocalsMap, TaskId};
+use crate::wait::Signal;
 
 const DEFAULT_BUDGET: u8 = 64;
 
@@ -16,6 +17,7 @@ pub struct Task {
     locals: LocalsMap,
     budget: u8,
     consumed_budget: AtomicU8,
+    signal: Option<Arc<Signal>>,
 }
 
 impl Task {
@@ -25,6 +27,10 @@ impl Task {
 
     pub fn sched_info(&self) -> &SchedInfo {
         &self.sched_info
+    }
+
+    pub fn signal(&self) -> &Option<Arc<Signal>> {
+        &self.signal
     }
 
     pub(crate) fn future(&self) -> &Mutex<Option<BoxFuture<'static, ()>>> {
@@ -78,6 +84,7 @@ pub struct TaskBuilder {
     future: Option<BoxFuture<'static, ()>>,
     priority: SchedPriority,
     budget: u8,
+    signal: Option<Arc<Signal>>,
 }
 
 impl TaskBuilder {
@@ -86,7 +93,13 @@ impl TaskBuilder {
             future: Some(future.boxed()),
             priority: SchedPriority::Normal,
             budget: DEFAULT_BUDGET,
+            signal: None,
         }
+    }
+
+    pub fn signal(mut self, signal: Option<Arc<Signal>>) -> Self {
+        self.signal = signal;
+        self
     }
 
     pub fn priority(mut self, priority: SchedPriority) -> Self {
@@ -108,6 +121,10 @@ impl TaskBuilder {
         let locals = LocalsMap::new();
         let budget = self.budget;
         let consumed_budget = AtomicU8::new(0);
+        let signal = match &self.signal {
+            Some(signal) => Some(signal.clone()),
+            _ => None,
+        };
         Arc::new(Task {
             tid,
             sched_info,
@@ -115,6 +132,7 @@ impl TaskBuilder {
             locals,
             budget,
             consumed_budget,
+            signal,
         })
     }
 }

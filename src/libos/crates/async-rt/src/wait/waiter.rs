@@ -7,6 +7,7 @@ use intrusive_collections::LinkedListLink;
 use object_id::ObjectId;
 
 use crate::prelude::*;
+use crate::task::current;
 use crate::time::{TimerEntry, TimerFutureEntry, DURATION_ZERO};
 
 /// A waiter.
@@ -36,8 +37,31 @@ impl Waiter {
     }
 
     /// Wait until being woken by the waker.
-    pub async fn wait(&self) {
-        self.inner.wait().await;
+    pub async fn wait(&self) -> Result<()> {
+        let task = current::get().clone();
+        let signal = task.signal();
+
+        if signal.is_none() {
+            self.inner.wait().await;
+            return Ok(());
+        }
+
+        let signal = signal.clone().unwrap();
+
+        if let Some(mut waiter) = signal.waiter() {
+            select_biased! {
+                _ = self.inner.wait().fuse() => {
+                    signal.unregister(&mut waiter);
+                    return Ok(());
+                }
+                _ = waiter.inner.wait().fuse() => {
+                    signal.unregister(&mut waiter);
+                    return_errno!(EINTR, "the waiter interrupted");
+                }
+            }
+        } else {
+            return_errno!(EINTR, "the waiter interrupted");
+        }
     }
 
     /// Wait until being woken by the waker or reaching timeout.
@@ -52,9 +76,10 @@ impl Waiter {
             Some(t) => {
                 let timer_entry = TimerEntry::new(*t.borrow_mut());
                 select_biased! {
-                    _ = self.inner.wait().fuse() => {
+                    ret = self.wait().fuse() => {
                         // We wake up before timeout expired.
                         *t.borrow_mut() = timer_entry.remained_duration();
+                        return ret;
                     }
                     _ = TimerFutureEntry::new(&timer_entry).fuse() => {
                         // The timer expired, we reached timeout.
@@ -63,9 +88,10 @@ impl Waiter {
                     }
                 };
             }
-            None => self.wait().await,
+            None => {
+                return self.wait().await;
+            }
         };
-        Ok(())
     }
 
     pub fn waker(&self) -> Waker {

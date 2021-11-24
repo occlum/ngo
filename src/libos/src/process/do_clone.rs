@@ -88,10 +88,12 @@ pub async fn do_clone(
         }
     }
 
-    async_rt::task::spawn(crate::entry::thread::main_loop(
-        new_thread_ref,
-        init_cpu_state,
-    ));
+    let signal = current!().process().count().clone();
+
+    async_rt::task::spawn(
+        crate::entry::thread::main_loop(new_thread_ref, init_cpu_state),
+        Some(signal),
+    );
     Ok(new_tid)
 }
 

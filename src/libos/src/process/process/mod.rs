@@ -1,7 +1,7 @@
 use std::fmt;
 use std::sync::Weak;
 
-use async_rt::wait::WaiterQueue;
+use async_rt::wait::{Signal, WaiterQueue};
 
 use super::{ForcedExitStatus, HostWaker, ProcessRef, TermStatus, ThreadRef};
 use crate::fs::FileMode;
@@ -153,6 +153,11 @@ impl Process {
     /// A process may be forced to exit many times, but only the first time counts.
     pub fn force_exit(&self, term_status: TermStatus) {
         self.forced_exit_status.force_exit(term_status);
+
+        // wake up all the waiters
+        self.count().produce();
+        self.sig_waiters().wake_all();
+        self.count().consume();
     }
 
     /// Get the internal representation of the process.
@@ -170,6 +175,10 @@ impl Process {
     /// Get the waiter queue to wait for any signals to the process or its threads.
     pub fn sig_waiters(&self) -> &WaiterQueue {
         &self.sig_waiters
+    }
+
+    pub fn count(&self) -> Arc<Signal> {
+        self.sig_queues.read().unwrap().count()
     }
 }
 

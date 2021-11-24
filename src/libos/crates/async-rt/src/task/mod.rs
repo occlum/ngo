@@ -3,6 +3,7 @@ use self::task::TaskBuilder;
 use crate::executor::EXECUTOR;
 use crate::prelude::*;
 use crate::sched::SchedPriority;
+use crate::wait::Signal;
 
 pub use self::id::TaskId;
 pub use self::join::JoinHandle;
@@ -17,8 +18,11 @@ mod join;
 mod locals;
 mod task;
 
-pub fn spawn<T: Send + 'static>(future: impl Future<Output = T> + 'static + Send) -> JoinHandle<T> {
-    SpawnOptions::new(future).spawn()
+pub fn spawn<T: Send + 'static>(
+    future: impl Future<Output = T> + 'static + Send,
+    signal: Option<Arc<Signal>>,
+) -> JoinHandle<T> {
+    SpawnOptions::new(future).signal(signal).spawn()
 }
 
 pub fn block_on<T: Send + 'static>(future: impl Future<Output = T> + 'static + Send) -> T {
@@ -65,6 +69,7 @@ fn init_runner_threads() {
 pub struct SpawnOptions<T> {
     raw_future: Option<BoxFuture<'static, T>>,
     priority: SchedPriority,
+    signal: Option<Arc<Signal>>,
 }
 
 impl<T: Send + 'static> SpawnOptions<T> {
@@ -72,7 +77,13 @@ impl<T: Send + 'static> SpawnOptions<T> {
         Self {
             raw_future: Some(future.boxed()),
             priority: SchedPriority::Normal,
+            signal: None,
         }
+    }
+
+    pub fn signal(mut self, signal: Option<Arc<Signal>>) -> Self {
+        self.signal = signal;
+        self
     }
 
     pub fn priority(mut self, priority: SchedPriority) -> Self {
@@ -94,7 +105,16 @@ impl<T: Send + 'static> SpawnOptions<T> {
                 output_handle.set(output);
             }
         };
-        let task = TaskBuilder::new(future).priority(self.priority).build();
+
+        let signal = match &self.signal {
+            Some(signal) => Some(signal.clone()),
+            _ => None,
+        };
+
+        let task = TaskBuilder::new(future)
+            .priority(self.priority)
+            .signal(signal)
+            .build();
         let join_handle = JoinHandle::new(state, task.clone());
 
         EXECUTOR.accept_task(task);
