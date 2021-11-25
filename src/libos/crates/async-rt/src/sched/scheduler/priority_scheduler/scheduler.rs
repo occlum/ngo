@@ -291,7 +291,7 @@ impl PriorityScheduler {
     }
 
     fn inc_epochs(&self) -> u64 {
-        self.epochs.fetch_add(1, Ordering::Relaxed)
+        self.epochs.fetch_add(10, Ordering::Relaxed)
     }
 }
 
@@ -343,7 +343,7 @@ impl Scheduler for PriorityScheduler {
                 // Use sliding window to update worker's latency.
                 // We think the current latency is 0 when the worker is idle.
                 #[cfg(feature = "use_latency")]
-                self.workers[thread_id].update_latency(0);
+                self.workers[thread_id].reset_latency();
                 None
             }
         }

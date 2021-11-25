@@ -127,6 +127,11 @@ impl Worker {
             .unwrap();
     }
 
+    #[cfg(feature = "use_latency")]
+    pub fn reset_latency(&self) {
+        self.latency.store(0, Ordering::Relaxed);
+    }
+
     fn inc_pri_number(&self) -> u8 {
         self.pri_number.fetch_add(1, Ordering::Relaxed)
     }
