@@ -10,10 +10,12 @@
 #include <spawn.h>
 #include <string.h>
 #include <spawn.h>
-
+#include <pthread.h>
+#include <sys/uio.h>
 #include "test.h"
 
-#define ECHO_MSG "echo msg for unix_socket test"
+#define ECHO_MSG "Echo msg for unix_socket test. Echo msg for unix_socket test. Echo msg for unix_socket test. Echo msg for unix_socket test. Echo msg for unix_socket test."
+#define ECHO_MSG_2 "include <sys/syscall.h> include <sys/wait.h> include <sys/socket.h> include <sys/un.h> include <sys/ioctl.h> include <poll.h> include <unistd.h> include <stdlib.h> include <stdio.h> include <spawn.h> include <string.h> include <spawn.h> include <pthread.h>"
 
 int create_connected_sockets_then_rename(int *sockets) {
     char *socket_original_path = "/tmp/socket_tmp";
@@ -203,6 +205,19 @@ int create_connected_sockets_then_rename(int *sockets) {
     return 0;
 }
 
+static int read_sock(char *buf, int buf_len, int socketfd, char *target_str) {
+    int total_len = 0, count = 0;
+    while (total_len < strlen(target_str)) {
+        count = read(socketfd, buf + total_len, buf_len - total_len);;
+        if (count < 0) {
+            THROW_ERROR("reading server message");
+        }
+        total_len += count;
+    }
+
+    return 0;
+}
+
 int verify_child_echo(int *connected_sockets) {
     const char *child_prog = "/bin/hello_world";
     const char *child_argv[3] = { child_prog, ECHO_MSG, NULL };
@@ -229,8 +244,10 @@ int verify_child_echo(int *connected_sockets) {
         THROW_ERROR("failed to poll");
     }
 
-    char actual_str[32] = {0};
-    read(connected_sockets[1], actual_str, 32);
+    char actual_str[1024] = {0};
+    if (read_sock(actual_str, 1024, connected_sockets[1], ECHO_MSG) < 0) {
+        THROW_ERROR("read sock error");
+    }
     if (strncmp(actual_str, ECHO_MSG, sizeof(ECHO_MSG) - 1) != 0) {
         printf("data read is :%s\n", actual_str);
         THROW_ERROR("received string is not as expected");
@@ -241,6 +258,42 @@ int verify_child_echo(int *connected_sockets) {
         THROW_ERROR("failed to wait4 the child process");
     }
 
+    return 0;
+}
+
+int verify_connection_vector(int src_sock, int dest_sock) {
+    struct iovec write_iov[2];
+    char bufs[1024] = {0};
+    int i;
+
+    write_iov[0].iov_base = ECHO_MSG;
+    write_iov[0].iov_len = strlen(ECHO_MSG);
+    write_iov[1].iov_base = ECHO_MSG_2;
+    write_iov[1].iov_len = strlen(ECHO_MSG_2);
+
+    for (i = 0; i < 10; i++) {
+        if (writev(src_sock, write_iov, 2) < 0) {
+            THROW_ERROR("writing server message");
+        }
+
+        int total_len = 0;
+        int count = 0;
+        while (total_len < sizeof(ECHO_MSG) + sizeof(ECHO_MSG_2) - 2) {
+            count = read(dest_sock, bufs + total_len, 1024 - total_len);
+            if (count < 0) {
+                THROW_ERROR("reading server message");
+            }
+            total_len += count;
+        }
+
+        char target_str[1024] = {0};
+        strcat(target_str, ECHO_MSG);
+        strcat(target_str + sizeof(ECHO_MSG) - 1, ECHO_MSG_2);
+        if (strncmp(bufs, target_str, sizeof(ECHO_MSG) + sizeof(ECHO_MSG_2) - 2) != 0) {
+            printf("msg received mismatch: %s\n", bufs);
+            return -1;
+        }
+    }
     return 0;
 }
 
@@ -258,11 +311,12 @@ int verify_connection(int src_sock, int dest_sock) {
             }
         }
 
-        if (read(dest_sock, buf, 1024) < 0) {
-            THROW_ERROR("reading server message");
+        if (read_sock(buf, 1024, dest_sock, ECHO_MSG) < 0) {
+            THROW_ERROR("read sock error");
         }
 
         if (strncmp(buf, ECHO_MSG, sizeof(ECHO_MSG)) != 0) {
+            printf("msg received mismatch: %s\n", buf);
             THROW_ERROR("msg received mismatch");
         }
     }
@@ -270,25 +324,26 @@ int verify_connection(int src_sock, int dest_sock) {
 }
 
 //this value should not be too large as one pair consumes 2MB memory
-#define PAIR_NUM 15
+#define PAIR_NUM 5
 
-int test_multiple_socketpairs() {
+void *run_multiple_socketpairs(void *arg) {
     int sockets[PAIR_NUM][2];
     int i;
-    int ret = 0;
+    int *ret = NULL;
 
     for (i = 0; i < PAIR_NUM; i++) {
         if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets[i]) < 0) {
-            THROW_ERROR("opening stream socket pair");
+            printf("opening stream socket pair\n");
+            return (int *) -1;
         }
 
         if (verify_connection(sockets[i][0], sockets[i][1]) < 0) {
-            ret = -1;
+            ret = (int *) -1;
             goto cleanup;
         }
 
-        if (verify_connection(sockets[i][1], sockets[i][0]) < 0) {
-            ret = -1;
+        if (verify_connection_vector(sockets[i][1], sockets[i][0]) < 0) {
+            ret = (int *) -1;
             goto cleanup;
         }
     }
@@ -297,6 +352,29 @@ cleanup:
     for (; i >= 0; i--) {
         close(sockets[i][0]);
         close(sockets[i][1]);
+    }
+    return (void *)ret;
+}
+
+#define THREAD_NUM 3
+int test_multiple_socketpairs() {
+    pthread_t tid[THREAD_NUM];
+    int ret = 0;
+    void *thread_ret = NULL;
+
+    for (int i = 0; i < THREAD_NUM; i++) {
+        ret = pthread_create(&tid[i], NULL, run_multiple_socketpairs, NULL);
+        if (ret != 0) {
+            THROW_ERROR("create child error");
+        }
+    }
+
+    for (int i = 0; i < THREAD_NUM; i++) {
+        ret += pthread_join(tid[i], &thread_ret);
+        if ((int *) thread_ret) {
+            printf("child thread error\n");
+            ret -= 1;
+        }
     }
     return ret;
 }
@@ -432,8 +510,10 @@ int test_ioctl_fionread() {
         printf("warning: ioctl FIONREAD value not match\n");
     }
 
-    char actual_str[32] = {0};
-    read(sockets[1], actual_str, 32);
+    char actual_str[1024] = {0};
+    if (read_sock(actual_str, 1024, sockets[1], ECHO_MSG) < 0) {
+        THROW_ERROR("read sock error");
+    }
     if (strncmp(actual_str, ECHO_MSG, sizeof(ECHO_MSG) - 1) != 0) {
         printf("data read is :%s\n", actual_str);
         THROW_ERROR("received string is not as expected");

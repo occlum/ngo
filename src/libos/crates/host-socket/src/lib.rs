@@ -6,6 +6,7 @@
 #![feature(stmt_expr_attributes)]
 #![feature(new_uninit)]
 #![feature(raw_ref_op)]
+#![feature(thread_local)]
 #![cfg_attr(feature = "sgx", no_std)]
 
 #[macro_use]

@@ -8,24 +8,49 @@ use super::ConnectedStream;
 use crate::prelude::*;
 use crate::runtime::Runtime;
 use crate::util::UntrustedCircularBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+// Thread local variables to track the position of async sendmsg.
+#[thread_local]
+static IOV_BUF_ID: AtomicUsize = AtomicUsize::new(0); // user buffer id tracker
+#[thread_local]
+static IOV_BUF_INDEX: AtomicUsize = AtomicUsize::new(0); // user buffer index tracker
+
+fn reset_thread_local_var() {
+    IOV_BUF_ID.store(0, Ordering::Relaxed);
+    IOV_BUF_INDEX.store(0, Ordering::Relaxed);
+}
 
 impl<A: Addr + 'static, R: Runtime> ConnectedStream<A, R> {
+    // We make sure the all the buffer contents are buffered in kernel and then return.
     pub async fn sendmsg(self: &Arc<Self>, bufs: &[&[u8]], flags: SendFlags) -> Result<usize> {
         let total_len: usize = bufs.iter().map(|buf| buf.len()).sum();
         if total_len == 0 {
             return Ok(0);
         }
 
+        let mut send_len = 0;
+
         // Initialize the poller only when needed
         let mut poller = None;
         loop {
             // Attempt to write
             let res = self.try_sendmsg(bufs, flags);
-            if !res.has_errno(EAGAIN) {
+            if let Ok(len) = res {
+                send_len += len;
+                // warn!("send_len = {:?}", send_len);
+                if send_len == total_len {
+                    reset_thread_local_var();
+                    return Ok(total_len);
+                }
+            } else if !res.has_errno(EAGAIN) {
+                reset_thread_local_var();
                 return res;
             }
 
+            // Still some buffer contents pending
             if self.common.nonblocking() || flags.contains(SendFlags::MSG_DONTWAIT) {
+                reset_thread_local_var();
                 return_errno!(EAGAIN, "try write again");
             }
 
@@ -33,7 +58,7 @@ impl<A: Addr + 'static, R: Runtime> ConnectedStream<A, R> {
             if poller.is_none() {
                 poller = Some(Poller::new());
             }
-            let mask = Events::OUT;
+            let mask = Events::OUT | Events::ERR;
             let events = self.common.pollee().poll(mask, poller.as_mut());
             if events.is_empty() {
                 poller.as_ref().unwrap().wait().await?;
@@ -62,14 +87,26 @@ impl<A: Addr + 'static, R: Runtime> ConnectedStream<A, R> {
         }
 
         // Copy data from the bufs to the send buffer
+        // If the send buffer is full, update the user buffer tracker, return error to wait for events
+        // And once there is free space, continue from the user buffer tracker
         let nbytes = {
             let mut total_produced = 0;
-            for buf in bufs {
-                let this_produced = inner.send_buf.produce(buf);
-                if this_produced == 0 {
-                    break;
-                }
+            let last_time_buf_id = IOV_BUF_ID.load(Ordering::Relaxed);
+            let mut last_time_buf_idx = IOV_BUF_INDEX.load(Ordering::Relaxed);
+            for (_i, buf) in bufs.iter().skip(last_time_buf_id).enumerate() {
+                let i = _i + last_time_buf_id; // After skipping ,the index still starts from 0
+                let this_produced = inner.send_buf.produce(&buf[last_time_buf_idx..]);
                 total_produced += this_produced;
+                // warn!("i = {:?}, total_produced = {:?}", i, total_produced);
+                if this_produced < buf[last_time_buf_idx..].len() {
+                    // Send buffer is full.
+                    IOV_BUF_ID.store(i, Ordering::Relaxed);
+                    IOV_BUF_INDEX.store(last_time_buf_idx + this_produced, Ordering::Relaxed);
+                    break;
+                } else {
+                    // For next buffer, start from the front
+                    last_time_buf_idx = 0;
+                }
             }
             total_produced
         };
@@ -122,6 +159,8 @@ impl<A: Addr + 'static, R: Runtime> ConnectedStream<A, R> {
             let nbytes = retval as usize;
             inner.send_buf.consume_without_copy(nbytes);
 
+            // info!("io uring sendmsg request Complete!");
+
             // Now that we have consume non-zero bytes, the buf must become
             // ready to write.
             stream.common.pollee().add_events(Events::OUT);
@@ -140,6 +179,7 @@ impl<A: Addr + 'static, R: Runtime> ConnectedStream<A, R> {
         // Submit the async send to io_uring
         let io_uring = self.common.io_uring();
         let host_fd = Fd(self.common.host_fd() as _);
+        // info!("io uring sendmsg request submit...");
         let handle = unsafe { io_uring.sendmsg(host_fd, msghdr_ptr, 0, complete_fn) };
         inner.io_handle.replace(handle);
     }

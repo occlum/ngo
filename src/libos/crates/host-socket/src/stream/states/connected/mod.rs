@@ -7,6 +7,7 @@ use crate::runtime::Runtime;
 mod recv;
 mod send;
 
+// Just a test to simulate big buffer read/write
 pub const SEND_BUF_SIZE: usize = 32 * 1024;
 pub const RECV_BUF_SIZE: usize = 32 * 1024;
 

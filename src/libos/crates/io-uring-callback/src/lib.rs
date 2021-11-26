@@ -133,6 +133,8 @@
 extern crate sgx_libc as libc;
 #[cfg(feature = "sgx")]
 extern crate sgx_tstd as std;
+#[macro_use]
+extern crate log;
 
 use std::io;
 use std::sync::Arc;
