@@ -32,10 +32,14 @@
 use super::{Injector, Worker};
 use crate::parks::Parks;
 use crate::prelude::*;
-use crate::sched::{SchedPriority, Scheduler, MAX_QUEUED_TASKS};
+use crate::sched::{
+    Affinity, SchedInfo, SchedInfoCommon, SchedPriority, Scheduler, MAX_QUEUED_TASKS,
+};
 use crate::task::Task;
 use spin::mutex::MutexGuard;
+use spin::rw_lock::RwLock;
 
+const DEFAULT_BUDGET: u8 = 64;
 pub struct PriorityScheduler {
     parallelism: usize,
     workers: Vec<Worker>,
@@ -114,7 +118,7 @@ impl PriorityScheduler {
 
         let thread_id = self.pick_best_candidates(&candidates, last_thread_id);
         task.sched_info().set_last_thread_id(thread_id as u32);
-        task.reset_budget();
+        task.sched_info().reset_budget();
         thread_id
     }
 
@@ -297,7 +301,7 @@ impl PriorityScheduler {
 
 impl Scheduler for PriorityScheduler {
     fn enqueue_task(&self, task: Arc<Task>) {
-        let thread_id = if task.has_remained_budget() {
+        let thread_id = if task.sched_info().has_remained_budget() {
             let last_thread_id = task.sched_info().last_thread_id() as usize;
             let use_last_thread_id = {
                 let affinity = task.sched_info().affinity().read();
@@ -347,5 +351,76 @@ impl Scheduler for PriorityScheduler {
                 None
             }
         }
+    }
+
+    fn sched_info(&self, priority: SchedPriority) -> Arc<dyn SchedInfo> {
+        Arc::new(PrioritySchedInfo::new(priority))
+    }
+
+    fn update_budget(&self, _schedule_info: &dyn SchedInfo) -> bool {
+        false
+    }
+}
+
+pub struct PrioritySchedInfo {
+    schedinfo_common: SchedInfoCommon,
+    budget: u8,
+    consumed_budget: AtomicU8,
+}
+
+impl PrioritySchedInfo {
+    pub fn new(priority: SchedPriority) -> Self {
+        let schedinfo_common = SchedInfoCommon::new(priority);
+        let budget = DEFAULT_BUDGET;
+        let consumed_budget = AtomicU8::new(0);
+        Self {
+            schedinfo_common,
+            budget,
+            consumed_budget,
+        }
+    }
+}
+
+impl SchedInfo for PrioritySchedInfo {
+    fn affinity(&self) -> &RwLock<Affinity> {
+        &self.schedinfo_common.affinity()
+    }
+
+    fn priority(&self) -> SchedPriority {
+        self.schedinfo_common.priority()
+    }
+
+    fn set_priority(&self, priority: SchedPriority) {
+        self.schedinfo_common.set_priority(priority)
+    }
+
+    fn last_thread_id(&self) -> u32 {
+        self.schedinfo_common.last_thread_id()
+    }
+
+    fn set_last_thread_id(&self, id: u32) {
+        self.schedinfo_common.set_last_thread_id(id)
+    }
+
+    #[cfg(feature = "use_latency")]
+    fn enqueue_epochs(&self) -> u64 {
+        self.schedinfo_common.enqueue_epochs()
+    }
+
+    #[cfg(feature = "use_latency")]
+    fn set_enqueue_epochs(&self, data: u64) {
+        self.schedinfo_common.set_enqueue_epochs(data)
+    }
+
+    fn has_remained_budget(&self) -> bool {
+        self.consumed_budget.load(Ordering::Relaxed) < self.budget
+    }
+
+    fn reset_budget(&self) {
+        self.consumed_budget.store(0, Ordering::Relaxed);
+    }
+
+    fn consume_budget(&self) {
+        self.consumed_budget.fetch_add(1, Ordering::Relaxed);
     }
 }

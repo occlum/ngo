@@ -3,7 +3,7 @@ use futures::task::waker_ref;
 use crate::config::CONFIG;
 use crate::parks::Parks;
 use crate::prelude::*;
-use crate::sched::{BasicScheduler, PriorityScheduler, Scheduler};
+use crate::sched::{yield_, BasicScheduler, SchedInfo, SchedPriority, Scheduler};
 use crate::task::Task;
 
 pub fn parallelism() -> u32 {
@@ -16,6 +16,10 @@ pub fn run_tasks() {
 
 pub fn shutdown() {
     EXECUTOR.shutdown()
+}
+
+pub async fn update_budget() {
+    EXECUTOR.update_budget().await;
 }
 
 lazy_static! {
@@ -78,6 +82,7 @@ impl Executor {
             match task_option {
                 Some(task) => {
                     task.reset_enqueued();
+                    task.sched_info().reset_budget();
 
                     self.execute_task(task)
                 }
@@ -99,8 +104,6 @@ impl Executor {
         };
 
         crate::task::current::set(task.clone());
-
-        task.consume_budget();
 
         let waker = waker_ref(&task);
         let context = &mut Context::from_waker(&*waker);
@@ -149,5 +152,17 @@ impl Executor {
 
     pub fn is_shutdown(&self) -> bool {
         self.is_shutdown.load(Ordering::Relaxed)
+    }
+
+    pub fn sched_info(&self, priority: SchedPriority) -> Arc<dyn SchedInfo> {
+        self.scheduler.sched_info(priority)
+    }
+
+    pub async fn update_budget(&self) {
+        let task = crate::task::current::get();
+
+        if self.scheduler.update_budget(task.sched_info()) {
+            yield_().await;
+        }
     }
 }

@@ -215,7 +215,7 @@ impl Tirqs {
 
     fn task(&self) -> Arc<Task> {
         // Safety. The tirqs must be a field of a task.
-        unsafe { Task::from_tirqs(self) }
+        Task::from_tirqs(self)
     }
 }
 

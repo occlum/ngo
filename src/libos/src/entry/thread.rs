@@ -44,6 +44,7 @@ async fn __main_loop(current: ThreadRef, init_cpu_state: CpuContext) {
         crate::signal::deliver_signal();
 
         crate::process::handle_force_exit();
+        async_rt::executor::update_budget().await;
     }
 }
 

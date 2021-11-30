@@ -1,11 +1,15 @@
+use spin::rw_lock::RwLock;
+
 use crate::parks::Parks;
 use crate::prelude::*;
-use crate::sched::Affinity;
+use crate::sched::{Affinity, SchedInfo, SchedInfoCommon, SchedPriority};
 use crate::task::Task;
 
 use super::{Scheduler, MAX_QUEUED_TASKS};
 
 use flume::{Receiver, Sender};
+
+const DEFAULT_BUDGET: u8 = 64;
 
 pub struct BasicScheduler {
     parallelism: usize,
@@ -54,5 +58,79 @@ impl Scheduler for BasicScheduler {
 
     fn dequeue_task(&self, thread_id: usize) -> Option<Arc<Task>> {
         self.run_queues[thread_id].try_recv().ok()
+    }
+
+    fn sched_info(&self, priority: SchedPriority) -> Arc<dyn SchedInfo> {
+        Arc::new(BasicSchedInfo::new(priority))
+    }
+
+    fn update_budget(&self, schedule_info: &dyn SchedInfo) -> bool {
+        schedule_info.consume_budget();
+        if !schedule_info.has_remained_budget() {
+            schedule_info.reset_budget();
+            true
+        } else {
+            false
+        }
+    }
+}
+
+pub struct BasicSchedInfo {
+    schedinfo_common: SchedInfoCommon,
+    consumed_budget: AtomicU8,
+}
+
+impl BasicSchedInfo {
+    pub fn new(priority: SchedPriority) -> Self {
+        let schedinfo_common = SchedInfoCommon::new(priority);
+        let consumed_budget = AtomicU8::new(0);
+        Self {
+            schedinfo_common,
+            consumed_budget,
+        }
+    }
+}
+
+impl SchedInfo for BasicSchedInfo {
+    fn affinity(&self) -> &RwLock<Affinity> {
+        &self.schedinfo_common.affinity()
+    }
+
+    fn priority(&self) -> SchedPriority {
+        self.schedinfo_common.priority()
+    }
+
+    fn set_priority(&self, priority: SchedPriority) {
+        self.schedinfo_common.set_priority(priority)
+    }
+
+    fn last_thread_id(&self) -> u32 {
+        self.schedinfo_common.last_thread_id()
+    }
+
+    fn set_last_thread_id(&self, id: u32) {
+        self.schedinfo_common.set_last_thread_id(id)
+    }
+
+    #[cfg(feature = "use_latency")]
+    fn enqueue_epochs(&self) -> u64 {
+        self.schedinfo_common.enqueue_epochs()
+    }
+
+    #[cfg(feature = "use_latency")]
+    fn set_enqueue_epochs(&self, data: u64) {
+        self.schedinfo_common.set_enqueue_epochs(data)
+    }
+
+    fn has_remained_budget(&self) -> bool {
+        self.consumed_budget.load(Ordering::Relaxed) < DEFAULT_BUDGET
+    }
+
+    fn reset_budget(&self) {
+        self.consumed_budget.store(0, Ordering::Relaxed);
+    }
+
+    fn consume_budget(&self) {
+        self.consumed_budget.fetch_add(1, Ordering::Relaxed);
     }
 }

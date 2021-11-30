@@ -5,7 +5,27 @@ use crate::prelude::*;
 use crate::sched::Affinity;
 
 /// A per-task scheduling-related info.
-pub struct SchedInfo {
+pub trait SchedInfo: Send + Sync {
+    fn affinity(&self) -> &RwLock<Affinity>;
+
+    fn priority(&self) -> SchedPriority;
+    fn set_priority(&self, priority: SchedPriority);
+
+    fn last_thread_id(&self) -> u32;
+    fn set_last_thread_id(&self, id: u32);
+
+    fn has_remained_budget(&self) -> bool;
+    fn reset_budget(&self);
+    fn consume_budget(&self);
+
+    #[cfg(feature = "use_latency")]
+    fn enqueue_epochs(&self) -> u64;
+    #[cfg(feature = "use_latency")]
+    fn set_enqueue_epochs(&self, data: u64);
+}
+
+/// The common part of SchedInfo.
+pub struct SchedInfoCommon {
     last_thread_id: AtomicU32,
     affinity: RwLock<Affinity>,
     priority: RwLock<SchedPriority>,
@@ -13,7 +33,7 @@ pub struct SchedInfo {
     enqueue_epochs: AtomicU64,
 }
 
-impl SchedInfo {
+impl SchedInfoCommon {
     pub fn new(priority: SchedPriority) -> Self {
         static LAST_THREAD_ID: AtomicU32 = AtomicU32::new(0);
 
@@ -26,7 +46,6 @@ impl SchedInfo {
         let priority = RwLock::new(priority);
         #[cfg(feature = "use_latency")]
         let enqueue_epochs = AtomicU64::new(0);
-
         Self {
             last_thread_id,
             affinity,
