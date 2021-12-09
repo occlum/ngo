@@ -584,3 +584,18 @@ jobs:
     - name: Run sysbench threads benchmark
       run: docker exec sysbench_test bash -c "cd /root/occlum/demos/sysbench/occlum_instance;
             occlum run /bin/sysbench threads --threads=200 --thread-yields=100 --thread-locks=4 --time=30 run"
+
+  Cross_world_unix_socket_test:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        submodules: true
+
+    - uses: ./.github/workflows/composite_action
+      with:
+        container-name: 'cross_world_unix_socket'
+        build-envs: 'OCCLUM_RELEASE_BUILD=1'
+
+    - name: Run unix socket test
+      run: docker exec cross_world_unix_socket bash -c "cd /root/occlum/demos/cross_world_uds; SGX_MODE=SIM ./run_cross_world_uds_test.sh"
