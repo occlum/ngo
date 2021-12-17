@@ -23,11 +23,11 @@ int connect_with_child(int port, int *child_pid) {
     int ret = 0;
     int listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (listen_fd < 0) {
-        printf("create socket error");
+        THROW_ERROR("create socket error");
     }
     int reuse = 1;
     if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
-        printf("setsockopt port to reuse failed");
+        THROW_ERROR("setsockopt port to reuse failed");
     }
 
     struct sockaddr_in servaddr;
@@ -160,7 +160,7 @@ int server_connectionless_recvmsg() {
     ret = bind(sock, (struct sockaddr *)&servaddr, sizeof(servaddr));
     if (ret < 0) {
         close(sock);
-        printf("bind socket failed");
+        THROW_ERROR("bind socket failed");
     }
 
     msg.msg_name = &clientaddr;
