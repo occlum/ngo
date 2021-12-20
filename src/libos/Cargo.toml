@@ -40,6 +40,7 @@ futures = { version = "0.3", default-features = false, features = ["alloc", "asy
 itertools = { version = "0.10.0", default-features = false, features = ["use_alloc"]  }
 ctor = "0.1"
 spin = "0.7"
+flume = { path = "../../deps/flume", default-features = false }
 
 [patch.'https://github.com/apache/teaclave-sgx-sdk.git']
 sgx_tstd = { path = "../../deps/rust-sgx-sdk/sgx_tstd" }
