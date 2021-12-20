@@ -9,9 +9,13 @@ use std::time::Duration;
 use std::{fmt, u64};
 pub use vdso_time::ClockId;
 
+mod syscalls;
+pub mod timer_fd;
 pub mod timer_slack;
 pub mod up_time;
 
+pub use self::syscalls::*;
+pub use timer_fd::{TimerCreationFlags, TimerFd, TimerSetFlags};
 pub use timer_slack::TIMERSLACK;
 
 #[allow(non_camel_case_types)]
@@ -201,5 +205,27 @@ impl TimeProvider for OcclumTimeProvider {
             sec: time.sec,
             nsec: time.usec as i32 * 1000,
         }
+    }
+}
+
+// For Timerfd
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone)]
+#[allow(non_camel_case_types)]
+pub struct itimerspec_t {
+    it_interval: timespec_t,
+    it_value: timespec_t,
+}
+
+impl itimerspec_t {
+    pub fn from_raw_ptr(ptr: *const itimerspec_t) -> Result<itimerspec_t> {
+        let its = unsafe { *ptr };
+        its.validate()?;
+        Ok(its)
+    }
+    pub fn validate(&self) -> Result<()> {
+        self.it_interval.validate()?;
+        self.it_value.validate()?;
+        Ok(())
     }
 }

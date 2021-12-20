@@ -15,6 +15,7 @@ dependencies = [
  "ctor",
  "derive_builder",
  "errno",
+ "flume",
  "futures",
  "goblin",
  "host-socket",
