@@ -318,9 +318,6 @@ impl ChunkManager {
                         let old_end = containing_vma.end();
                         let protect_end = protect_range.end();
 
-                        // Shrinked old VMA
-                        containing_vma.set_end(protect_range.start());
-
                         // New VMA
                         let new_vma = VMArea::inherits_file_from(
                             &containing_vma,
@@ -343,6 +340,10 @@ impl ChunkManager {
                             VMAObj::new_vma_obj(new_vma)
                         };
 
+                        // Shrinked old VMA
+                        // This must be updated last so that the file-backed new vma created above will have the correct file index
+                        containing_vma.set_end(protect_range.start());
+
                         containing_vmas.replace_with(VMAObj::new_vma_obj(containing_vma));
                         containing_vmas.insert(new_vma);
                         containing_vmas.insert(new_vma2);
@@ -351,6 +352,14 @@ impl ChunkManager {
                     }
                     1 => {
                         let remain_vma = remain_vmas.pop().unwrap();
+                        let new_vma = VMArea::inherits_file_from(
+                            &containing_vma,
+                            intersection_vma.range().clone(),
+                            new_perms,
+                            current_pid,
+                        );
+                        VMPerms::apply_perms(&new_vma, new_vma.perms());
+
                         if remain_vma.start() == containing_vma.start() {
                             // mprotect right side of the vma
                             containing_vma.set_end(remain_vma.end());
@@ -359,13 +368,6 @@ impl ChunkManager {
                             debug_assert!(remain_vma.end() == containing_vma.end());
                             containing_vma.set_start(remain_vma.start());
                         }
-                        let new_vma = VMArea::inherits_file_from(
-                            &containing_vma,
-                            intersection_vma.range().clone(),
-                            new_perms,
-                            current_pid,
-                        );
-                        VMPerms::apply_perms(&new_vma, new_vma.perms());
 
                         containing_vmas.replace_with(VMAObj::new_vma_obj(containing_vma));
                         containing_vmas.insert(VMAObj::new_vma_obj(new_vma));

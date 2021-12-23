@@ -713,8 +713,6 @@ impl InternalVMManager {
                     let old_end = containing_vma.end();
                     let old_perms = containing_vma.perms();
 
-                    containing_vma.set_end(protect_range.start());
-
                     let new_vma = VMArea::inherits_file_from(
                         &containing_vma,
                         protect_range,
@@ -733,18 +731,12 @@ impl InternalVMManager {
                         )
                     };
 
+                    // This must be updated last so that the file-backed new vma created above will have the correct file index
+                    containing_vma.set_end(protect_range.start());
                     let updated_vmas = vec![containing_vma.clone(), new_vma, remaining_old_vma];
                     updated_vmas
                 }
                 _ => {
-                    if same_start {
-                        // Protect range is at left side of the cotaining vma
-                        containing_vma.set_start(protect_range.end());
-                    } else {
-                        // Protect range is at right side of the cotaining vma
-                        containing_vma.set_end(protect_range.start());
-                    }
-
                     let new_vma = VMArea::inherits_file_from(
                         &containing_vma,
                         protect_range,
@@ -753,6 +745,13 @@ impl InternalVMManager {
                     );
                     VMPerms::apply_perms(&new_vma, new_vma.perms());
 
+                    if same_start {
+                        // Protect range is at left side of the cotaining vma
+                        containing_vma.set_start(protect_range.end());
+                    } else {
+                        // Protect range is at right side of the cotaining vma
+                        containing_vma.set_end(protect_range.start());
+                    }
                     let updated_vmas = vec![containing_vma.clone(), new_vma];
                     updated_vmas
                 }
