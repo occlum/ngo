@@ -1,8 +1,9 @@
 use crate::prelude::*;
+use libc::{c_int, c_void, size_t};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "sgx")] {
-        use libc::ocall::ioctl_arg1 as do_ioctl;
+        use occlum_ocall_ioctl as do_ioctl;
     } else {
         use libc::ioctl as do_ioctl;
     }
@@ -28,9 +29,9 @@ pub struct GetIfReqWithRawCmd {
 }
 
 impl GetIfReqWithRawCmd {
-    pub fn new(raw_cmd: u32) -> Self {
+    pub fn new(raw_cmd: u32, req: IfReq) -> Self {
         Self {
-            inner: GetIfReq::new(()),
+            inner: GetIfReq::new(req),
             raw_cmd,
         }
     }
@@ -40,24 +41,48 @@ impl GetIfReqWithRawCmd {
     }
 
     pub fn execute(&mut self, fd: HostFd) -> Result<()> {
-        let if_req = get_ifreq_by_host(fd, self.raw_cmd)?;
-        self.inner.set_output(if_req);
+        let input_if_req = self.inner.input();
+        let output_if_req = get_ifreq_by_host(fd, self.raw_cmd, input_if_req)?;
+        self.inner.set_output(output_if_req);
         Ok(())
     }
 }
 
-fn get_ifreq_by_host(fd: HostFd, cmd: u32) -> Result<IfReq> {
-    let mut if_req: IfReq = Default::default();
-    try_libc!(do_ioctl(
-        fd as _,
-        cmd as _,
-        &mut if_req as *mut IfReq as *mut i32
-    ));
+fn get_ifreq_by_host(fd: HostFd, cmd: u32, req: &IfReq) -> Result<IfReq> {
+    let mut if_req: IfReq = req.clone();
+    // info!("if_req = {:?}, fd = {:?}", if_req, fd);
+    // // try_libc!(do_ioctl(
+    // //     fd as _,
+    // //     cmd as _,
+    // //     &mut if_req as *mut IfReq as *mut u8
+    // // ));
+    try_libc!({
+        let mut retval: i32 = 0;
+        let status = occlum_ocall_ioctl(
+            &mut retval as *mut i32,
+            fd as i32,
+            cmd as i32,
+            &mut if_req as *mut IfReq as *mut c_void,
+            std::mem::size_of::<IfReq>(),
+        );
+        assert!(status == sgx_types::sgx_status_t::SGX_SUCCESS);
+        retval
+    });
     Ok(if_req)
 }
 
 impl IoctlCmd for GetIfReqWithRawCmd {}
 
 async_io::impl_ioctl_cmd! {
-    pub struct GetIfReq<Input=(), Output=IfReq> {}
+    pub struct GetIfReq<Input=IfReq, Output=IfReq> {}
+}
+
+extern "C" {
+    pub fn occlum_ocall_ioctl(
+        ret: *mut i32,
+        fd: c_int,
+        request: c_int,
+        arg: *mut c_void,
+        len: size_t,
+    ) -> sgx_types::sgx_status_t;
 }
