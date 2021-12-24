@@ -63,6 +63,17 @@ impl CSockAddr for (libc::sockaddr_in, usize) {
     }
 }
 
+impl CSockAddr for (libc::sockaddr_in6, usize) {
+    fn c_family(&self) -> libc::sa_family_t {
+        self.0.sin6_family
+    }
+
+    fn c_addr(&self) -> &[u8] {
+        assert!(self.1 == size_of::<libc::sockaddr_in6>());
+        &self.0.sin6_addr.s6_addr
+    }
+}
+
 impl CSockAddr for (libc::sockaddr_un, usize) {
     fn c_family(&self) -> libc::sa_family_t {
         libc::AF_UNIX as _
