@@ -12,6 +12,7 @@ java \
     -Xmx8g \
     -XX:ActiveProcessorCount=${core_num} \
     -Dcom.intel.analytics.zoo.shaded.io.netty.tryReflectionSetAccessible=true \
+    -Djava.net.preferIPv4Stack=true \
     -Dakka.http.host-connection-pool.max-connections=100 \
     -Dakka.http.host-connection-pool.max-open-requests=128 \
     -Dakka.actor.default-dispatcher.fork-join-executor.parallelism-min=100 \

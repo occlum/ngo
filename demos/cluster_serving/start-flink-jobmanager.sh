@@ -18,6 +18,7 @@ java \
     -Xms5g \
     -Xmx10g \
     -XX:ActiveProcessorCount=${core_num} \
+    -Djava.net.preferIPv4Stack=true \
     -Dorg.apache.flink.shaded.netty4.io.netty.tryReflectionSetAccessible=true \
     -Dorg.apache.flink.shaded.netty4.io.netty.eventLoopThreads=${core_num} \
     -Dcom.intel.analytics.zoo.shaded.io.netty.tryReflectionSetAccessible=true \

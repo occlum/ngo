@@ -39,6 +39,7 @@ run_taskmanager() {
     occlum run /usr/lib/jvm/java-11-openjdk-amd64/bin/java \
     -XX:+UseG1GC -Xmx1152m -Xms1152m -XX:MaxDirectMemorySize=512m -XX:MaxMetaspaceSize=256m \
     -Dos.name=Linux \
+    -Djava.net.preferIPv4Stack=true \
     -XX:ActiveProcessorCount=${core_num} \
     -Dlog.file=$log \
     -Dlog4j.configuration=file:/opt/conf/log4j.properties \
