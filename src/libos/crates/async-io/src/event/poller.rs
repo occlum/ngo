@@ -12,6 +12,7 @@ use crate::prelude::*;
 
 /// A pollee maintains a set of active events, which can be polled with
 /// pollers or be monitored with observers.
+#[derive(Clone)]
 pub struct Pollee {
     inner: Arc<PolleeInner>,
 }
