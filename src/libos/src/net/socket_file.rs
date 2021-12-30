@@ -381,30 +381,33 @@ impl SocketFile {
         addr: Option<AnyAddr>,
         flags: SendFlags,
     ) -> Result<usize> {
+        use super::syscalls::socket_timeout;
+        let timeout = socket_timeout.lock().unwrap().clone();
         let res = match &self.socket {
             AnySocket::Ipv4Stream(ipv4_stream) => {
                 if addr.is_some() {
                     return_errno!(EISCONN, "addr should be none");
                 }
-                ipv4_stream.sendmsg(bufs, flags).await
+
+                ipv4_stream.sendmsg(bufs, flags, timeout).await
             }
             AnySocket::Ipv6Stream(ipv6_stream) => {
                 if addr.is_some() {
                     return_errno!(EISCONN, "addr should be none");
                 }
-                ipv6_stream.sendmsg(bufs, flags).await
+                ipv6_stream.sendmsg(bufs, flags, timeout).await
             }
             AnySocket::UnixStream(unix_stream) => {
                 if addr.is_some() {
                     return_errno!(EISCONN, "addr should be none");
                 }
-                unix_stream.sendmsg(bufs, flags).await
+                unix_stream.sendmsg(bufs, flags, None).await
             }
             AnySocket::TrustedUDS(trusted_stream) => {
                 if addr.is_some() {
                     return_errno!(EISCONN, "addr should be none");
                 }
-                trusted_stream.sendmsg(bufs, flags).await
+                trusted_stream.sendmsg(bufs, flags, None).await
             }
             AnySocket::Ipv4Datagram(ipv4_datagram) => {
                 let ip_addr = if let Some(addr) = addr.as_ref() {

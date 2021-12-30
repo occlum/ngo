@@ -34,6 +34,10 @@ impl SetSockOptRawCmd {
 impl IoctlCmd for SetSockOptRawCmd {}
 
 fn setsockopt_by_host(fd: HostFd, level: i32, optname: i32, optval: &[u8]) -> Result<()> {
+    warn!(
+        "hostfd = {}, optname = {}, optval = {:?}",
+        fd, optname, optval
+    );
     try_libc!(do_setsockopt(
         fd as _,
         level as _,

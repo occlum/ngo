@@ -405,6 +405,11 @@ pub async fn do_getsockopt(
     Ok(0)
 }
 
+use std::time::Duration;
+lazy_static! {
+    pub static ref socket_timeout: SgxMutex<Option<Duration>> = SgxMutex::new(None);
+}
+
 pub async fn do_setsockopt(
     fd: c_int,
     level: c_int,
@@ -421,6 +426,14 @@ pub async fn do_setsockopt(
     let socket_file = file_ref
         .as_socket_file()
         .ok_or_else(|| errno!(EINVAL, "not a socket"))?;
+
+    if optname == SockOptName::SO_SNDTIMEO_OLD as i32 {
+        use crate::time::{timespec_t, timeval_t};
+        let timeout = unsafe { (&*(optval as *const timeval_t)) }.as_duration();
+        info!("timeout = {:?}", timeout);
+        *socket_timeout.lock().unwrap() = Some(timeout);
+        return Ok(0);
+    }
 
     let optval = from_user::make_slice(optval as *const u8, optlen as usize)?;
 

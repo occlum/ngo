@@ -9,6 +9,7 @@ use crate::prelude::*;
 use crate::runtime::Runtime;
 use crate::util::UntrustedCircularBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
 
 // Thread local variables to track the position of async sendmsg.
 #[thread_local]
@@ -23,7 +24,12 @@ fn reset_thread_local_var() {
 
 impl<A: Addr + 'static, R: Runtime> ConnectedStream<A, R> {
     // We make sure the all the buffer contents are buffered in kernel and then return.
-    pub async fn sendmsg(self: &Arc<Self>, bufs: &[&[u8]], flags: SendFlags) -> Result<usize> {
+    pub async fn sendmsg(
+        self: &Arc<Self>,
+        bufs: &[&[u8]],
+        flags: SendFlags,
+        timeout: Option<Duration>,
+    ) -> Result<usize> {
         let total_len: usize = bufs.iter().map(|buf| buf.len()).sum();
         if total_len == 0 {
             return Ok(0);
@@ -61,7 +67,22 @@ impl<A: Addr + 'static, R: Runtime> ConnectedStream<A, R> {
             let mask = Events::OUT | Events::ERR;
             let events = self.common.pollee().poll(mask, poller.as_mut());
             if events.is_empty() {
-                poller.as_ref().unwrap().wait().await?;
+                info!("wait here?");
+                let mut timeout = timeout.clone();
+                poller
+                    .as_ref()
+                    .unwrap()
+                    .wait_timeout(timeout.as_mut())
+                    .await
+                    .map_err(|e| {
+                        if e.errno() == ETIMEDOUT {
+                            errno!(EAGAIN, "send timeout")
+                        } else {
+                            errno!(e.errno(), "other error")
+                        }
+                    })?;
+                // poller.as_ref().unwrap().wait_timeout(Some(&mut duration)).await?;
+                info!("yes!");
             }
         }
     }
@@ -144,6 +165,7 @@ impl<A: Addr + 'static, R: Runtime> ConnectedStream<A, R> {
             // Release the handle to the async send
             inner.io_handle.take();
 
+            info!("iouring request return");
             // Handle error
             if retval < 0 {
                 // TODO: guard against Iago attack through errno
@@ -151,6 +173,7 @@ impl<A: Addr + 'static, R: Runtime> ConnectedStream<A, R> {
                 let errno = Errno::from(-retval as u32);
                 inner.fatal = Some(errno);
                 stream.common.pollee().add_events(Events::ERR);
+                info!("errno = {:?}", errno);
                 return;
             }
             assert!(retval != 0);
@@ -180,6 +203,7 @@ impl<A: Addr + 'static, R: Runtime> ConnectedStream<A, R> {
         let io_uring = self.common.io_uring();
         let host_fd = Fd(self.common.host_fd() as _);
         // info!("io uring sendmsg request submit...");
+        info!("sendmsgx host_fd = {:?}", host_fd);
         let handle = unsafe { io_uring.sendmsg(host_fd, msghdr_ptr, 0, complete_fn) };
         inner.io_handle.replace(handle);
     }

@@ -11,6 +11,7 @@ use async_io::file::StatusFlags;
 use async_io::ioctl::IoctlCmd;
 use async_io::socket::Shutdown;
 use async_io::socket::{RecvFlags, SendFlags};
+use std::time::Duration;
 
 pub mod trusted;
 pub mod untrusted;
@@ -182,8 +183,15 @@ impl UnixStream {
         apply_fn_on_any_stream!(self.inner(), |stream| { stream.recvmsg(buf, flags).await })
     }
 
-    pub async fn sendmsg(&self, bufs: &[&[u8]], flags: SendFlags) -> Result<usize> {
-        apply_fn_on_any_stream!(self.inner(), |stream| { stream.sendmsg(bufs, flags).await })
+    pub async fn sendmsg(
+        &self,
+        bufs: &[&[u8]],
+        flags: SendFlags,
+        timeout: Option<Duration>,
+    ) -> Result<usize> {
+        apply_fn_on_any_stream!(self.inner(), |stream| {
+            stream.sendmsg(bufs, flags, timeout).await
+        })
     }
 
     pub fn peer_addr(&self) -> Result<AnyAddr> {

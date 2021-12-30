@@ -27,6 +27,7 @@ impl<A: Addr + 'static, R: Runtime> InitStream<A, R> {
             return_errno!(EINVAL, "the socket is already bound to an address");
         }
 
+        info!("bind addr = {:?}", addr);
         crate::common::do_bind(self.common.host_fd(), addr)?;
 
         inner.has_bound = true;

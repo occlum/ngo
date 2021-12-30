@@ -6,6 +6,7 @@ use crate::ioctl::*;
 use crate::prelude::*;
 use crate::runtime::Runtime;
 use crate::sockopt::*;
+use std::time::Duration;
 
 pub struct StreamSocket<A: Addr + 'static, R: Runtime> {
     state: RwLock<State<A, R>>,
@@ -197,10 +198,15 @@ impl<A: Addr, R: Runtime> StreamSocket<A, R> {
     }
 
     pub async fn writev(&self, bufs: &[&[u8]]) -> Result<usize> {
-        self.sendmsg(bufs, SendFlags::empty()).await
+        self.sendmsg(bufs, SendFlags::empty(), None).await
     }
 
-    pub async fn sendmsg(&self, bufs: &[&[u8]], flags: SendFlags) -> Result<usize> {
+    pub async fn sendmsg(
+        &self,
+        bufs: &[&[u8]],
+        flags: SendFlags,
+        timeout: Option<Duration>,
+    ) -> Result<usize> {
         let connected_stream = {
             let state = self.state.read().unwrap();
             match &*state {
@@ -211,7 +217,7 @@ impl<A: Addr, R: Runtime> StreamSocket<A, R> {
             }
         };
 
-        connected_stream.sendmsg(bufs, flags).await
+        connected_stream.sendmsg(bufs, flags, timeout).await
     }
 
     pub fn poll(&self, mask: Events, poller: Option<&mut Poller>) -> Events {
@@ -258,6 +264,7 @@ impl<A: Addr, R: Runtime> StreamSocket<A, R> {
     }
 
     pub fn ioctl(&self, cmd: &mut dyn IoctlCmd) -> Result<()> {
+        info!("ioctl host fd = {:?}", self.host_fd());
         async_io::match_ioctl_cmd_mut!(&mut *cmd, {
             cmd: GetSockOptRawCmd => {
                 cmd.execute(self.host_fd())?;

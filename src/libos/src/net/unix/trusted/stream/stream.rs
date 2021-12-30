@@ -9,6 +9,7 @@ use async_io::util::channel::Channel;
 use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 /// Unix socket based on trusted channel. It has three statuses: unconnected, listening and connected.  When a
 /// socket is created, it is in unconnected status.  It will transfer to listening after listen is
@@ -65,11 +66,16 @@ impl Stream {
     }
 
     pub async fn writev(&self, bufs: &[&[u8]]) -> Result<usize> {
-        self.sendmsg(bufs, SendFlags::empty()).await
+        self.sendmsg(bufs, SendFlags::empty(), None).await
     }
 
     // TODO: handle flags
-    pub async fn sendmsg(&self, bufs: &[&[u8]], flags: SendFlags) -> Result<usize> {
+    pub async fn sendmsg(
+        &self,
+        bufs: &[&[u8]],
+        flags: SendFlags,
+        timeout: Option<Duration>,
+    ) -> Result<usize> {
         let addr = self.peer_addr().ok();
         debug!("recvfrom {:?}", addr);
 
