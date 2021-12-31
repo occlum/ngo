@@ -157,6 +157,23 @@ impl<A: Addr + 'static, R: Runtime> Common<A, R> {
         let mut inner = self.inner.lock().unwrap();
         inner.peer_addr = None;
     }
+
+    pub fn shutdown(&self, how: Shutdown) -> Result<()> {
+        if how.should_shut_read() {
+            // self.receiver.shutdown();
+            self.pollee().add_events(Events::IN);
+        }
+        if how.should_shut_write() {
+            // self.sender.shutdown();
+            self.pollee().add_events(Events::OUT);
+        }
+
+        if how == Shutdown::Both {
+            self.pollee().add_events(Events::HUP);
+        }
+
+        Ok(())
+    }
 }
 
 impl<A: Addr + 'static, R: Runtime> std::fmt::Debug for Common<A, R> {

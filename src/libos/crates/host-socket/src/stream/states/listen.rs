@@ -52,6 +52,12 @@ impl<A: Addr + 'static, R: Runtime> ListenerStream<A, R> {
     }
 
     pub async fn accept(self: &Arc<Self>, nonblocking: bool) -> Result<Arc<ConnectedStream<A, R>>> {
+        info!(
+            "accept socket nonblocking: {:?}, self nonblocking: {:?}, hostfd = {:?}",
+            nonblocking,
+            self.common.nonblocking(),
+            self.common.host_fd()
+        );
         // Init the poller only when needed
         let mut poller = None;
         loop {
@@ -61,7 +67,7 @@ impl<A: Addr + 'static, R: Runtime> ListenerStream<A, R> {
                 return res;
             }
 
-            if self.common.nonblocking() {
+            if self.common.nonblocking() || nonblocking {
                 return_errno!(EAGAIN, "no connections are present to be accepted");
             }
 
@@ -85,11 +91,16 @@ impl<A: Addr + 'static, R: Runtime> ListenerStream<A, R> {
             return_errno!(errno, "accept failed");
         }
 
+        warn!("backlog = {:?}", inner.backlog);
         let (accepted_fd, accepted_addr) = inner.backlog.pop_completed_req().ok_or_else(|| {
             self.common.pollee().del_events(Events::IN);
             errno!(EAGAIN, "try accept again")
         })?;
 
+        warn!(
+            "accepted_fd = {:?}, accepted_addr = {:?}",
+            accepted_fd, accepted_addr
+        );
         if !inner.backlog.has_completed_reqs() {
             self.common.pollee().del_events(Events::IN);
         }
@@ -124,6 +135,12 @@ impl<A: Addr + 'static, R: Runtime> ListenerStream<A, R> {
                 unsafe { io_uring.cancel(io_handle) };
             }
         }
+    }
+
+    pub fn shutdown(&self, how: Shutdown) -> Result<()> {
+        self.cancel_requests();
+        // self.inner.lock().unwrap().backlog.clean();
+        self.common.shutdown(how)
     }
 }
 
@@ -227,6 +244,20 @@ impl<A: Addr> Backlog<A> {
         Ok(new_self)
     }
 
+    pub fn clean(&mut self) {
+        // let mut poller = None;
+
+        let empty = Self {
+            entries: Vec::new().into_boxed_slice(),
+            reqs: UntrustedBox::new_uninit_slice(0),
+            completed: VecDeque::new(),
+            num_free: 0,
+            phantom_data: PhantomData,
+        };
+
+        *self = empty;
+    }
+
     pub fn has_free_entries(&self) -> bool {
         self.num_free > 0
     }
@@ -271,7 +302,7 @@ impl<A: Addr> Backlog<A> {
                     let errno = Errno::from(-retval as u32);
                     log::error!("Accept error: errno = {}", errno);
                     //inner.fatal = Some(errno);
-                    //stream.common.pollee().add_events(Events::ERR);
+                    stream.common.pollee().add_events(Events::ERR);
 
                     inner.backlog.entries[entry_idx] = Entry::Free;
                     inner.backlog.num_free += 1;
@@ -286,10 +317,12 @@ impl<A: Addr> Backlog<A> {
                 inner.backlog.completed.push_back(entry_idx);
 
                 stream.common.pollee().add_events(Events::IN);
-
+                warn!("accept done. host fd = {:?}", host_fd);
+                info!("backlog = {:?}", inner.backlog);
                 stream.initiate_async_accepts(inner);
             }
         };
+        warn!("start new req stream = {:?}", stream.common);
         let io_uring = stream.common.io_uring();
         let fd = stream.common.host_fd() as i32;
         let flags = 0;
@@ -320,6 +353,10 @@ impl<A: Addr> Backlog<A> {
             *entry = Entry::Free;
             accepted_fd
         };
+        info!(
+            "pop completed accept request: hostfd:{}, accept_addr:{:?}",
+            accepted_fd, accepted_addr
+        );
         Some((accepted_fd, accepted_addr))
     }
 }

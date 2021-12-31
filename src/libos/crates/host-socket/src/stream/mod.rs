@@ -212,7 +212,7 @@ impl<A: Addr, R: Runtime> StreamSocket<A, R> {
             match &*state {
                 State::Connected(connected_stream) => connected_stream.clone(),
                 _ => {
-                    return_errno!(ENOTCONN, "the socket is not connected");
+                    return_errno!(EPIPE, "the socket is not connected");
                 }
             }
         };
@@ -318,17 +318,43 @@ impl<A: Addr, R: Runtime> StreamSocket<A, R> {
     }
 
     pub fn shutdown(&self, shutdown: Shutdown) -> Result<()> {
-        let connected_stream = {
-            let state = self.state.read().unwrap();
-            match &*state {
-                State::Connected(connected_stream) => connected_stream.clone(),
-                _ => {
-                    return_errno!(ENOTCONN, "the socket is not connected");
-                }
+        // let connected_stream = {
+        //     let state = self.state.read().unwrap();
+        //     match &*state {
+        //         State::Connected(connected_stream) => connected_stream.clone(),
+        //         _ => {
+        //             return_errno!(ENOTCONN, "the socket is not connected");
+        //         }
+        //     }
+        // };
+        let mut state = self.state.write().unwrap();
+        let mut common;
+        match &*state {
+            // State::Init(init_stream) => { init_stream.shutdown(shutdown)}
+            State::Listen(listening_stream) => {
+                // nonblocking = listening_stream.common().nonblocking();
+                common = listening_stream.common().clone();
+                listening_stream.shutdown(shutdown)?
             }
-        };
+            State::Connect(connecting_stream) => {
+                // nonblocking = connecting_stream.common().nonblocking();
+                common = connecting_stream.common().clone();
+                connecting_stream.shutdown(shutdown)?
+            }
+            State::Connected(connected_stream) => {
+                // nonblocking = connected_stream.common().nonblocking();
+                common = connected_stream.common().clone();
+                connected_stream.shutdown(shutdown)?
+            }
+            _ => {
+                return_errno!(ENOTCONN, "the socket is not connected");
+            }
+        }
 
-        connected_stream.shutdown(shutdown)
+        *state = State::Init(InitStream::back_to_init(common)?);
+        Ok(())
+
+        // connected_stream.shutdown(shutdown)
     }
 
     fn cancel_requests(&self) {

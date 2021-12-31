@@ -38,13 +38,18 @@ impl<A: Addr + 'static, R: Runtime> ConnectingStream<A, R> {
         let pollee = self.common.pollee();
         pollee.reset_events();
 
+        warn!("connect addr = {:?}", self.peer_addr());
         self.initiate_async_connect();
+        info!(
+            "connect socket nonblocking: {:?}",
+            self.common.nonblocking()
+        );
 
         // Wait for the async connect to complete
         let mut poller = Poller::new();
         loop {
             let events = pollee.poll(Events::OUT, Some(&mut poller));
-            if !events.is_empty() {
+            if !events.is_empty() || self.common.nonblocking() {
                 break;
             }
             poller.wait().await?;
@@ -53,7 +58,7 @@ impl<A: Addr + 'static, R: Runtime> ConnectingStream<A, R> {
         // Finish the async connect
         let req = self.req.lock().unwrap();
         if let Some(e) = req.errno {
-            return_errno!(e, "connect failed");
+            return_errno!(EINPROGRESS, "connect failed");
         }
         Ok(())
     }
@@ -100,6 +105,10 @@ impl<A: Addr + 'static, R: Runtime> ConnectingStream<A, R> {
 
     pub fn common(&self) -> &Arc<Common<A, R>> {
         &self.common
+    }
+
+    pub fn shutdown(&self, how: Shutdown) -> Result<()> {
+        self.common.shutdown(how)
     }
 }
 

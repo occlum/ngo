@@ -21,6 +21,12 @@ impl<A: Addr + 'static, R: Runtime> InitStream<A, R> {
         Ok(Arc::new(new_self))
     }
 
+    pub fn back_to_init(common: Arc<Common<A, R>>) -> Result<Arc<Self>> {
+        let inner = Mutex::new(Inner { has_bound: true });
+        let new_self = Self { common, inner };
+        Ok(Arc::new(new_self))
+    }
+
     pub fn bind(&self, addr: &A) -> Result<()> {
         let mut inner = self.inner.lock().unwrap();
         if inner.has_bound {
