@@ -42,7 +42,8 @@ cmake ../ \
 	-Dprotobuf_BUILD_TESTS=OFF -DBUILD_SHARED_LIBS=TRUE \
 	-DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=occlum-gcc \
 	-DCMAKE_CXX_COMPILER=occlum-g++ -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR \
-	-DCMAKE_NO_SYSTEM_FROM_IMPORTED=TRUE
+	-DCMAKE_NO_SYSTEM_FROM_IMPORTED=TRUE \
+	-DZLIB_INCLUDE_DIR=/usr/local/occlum/x86_64-linux-musl/include
 
 make -j$(nproc)
 make install
