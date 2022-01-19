@@ -761,6 +761,9 @@ jobs:
     - name: Run gvisor syscall test
       run: docker exec $gvisor_test bash -c "cd /root/gvisor_occlum; ./run_occlum_passed_tests.sh"
 
+    - name: Run gvisor syscall test on ngo
+      run:docker exec $gvisor_test bash -c "cd /root/gvisor_occlum; ./run_occlum_passed_tests.sh ngo"
+
     - name: Clean the environment
       if: ${{ always() }}
       run: docker stop $gvisor_test
