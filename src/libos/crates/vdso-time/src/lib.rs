@@ -1,3 +1,20 @@
+//! Make Linux's VDSO time accessible from enclaves.
+//!
+//! # Maintainability
+//!
+//! This crate needs to know the memory layout of the VDSO time in the Linux
+//! kernel on the host.  Since we cannot trust any inputs from the host Linux,
+//! we embed the memory layout information of all recent versions of Linux
+//! kernels in the crate itself. Currently, the latest support kernel version
+//! is 5.16.
+//!
+//! To support future Linux kernels, this crate needs to be updated.
+//! The definition of the VDSO time data structures (`struct vdso_data`) can be found in
+//! [this file](https://github.com/torvalds/linux/blame/master/include/vdso/datapage.h).
+//! Check the file to see if a new kernel version changes the data structure.
+//! Most likely, it won't get affected. And we can simply add the new version to
+//! our list of supported versions.
+
 #![cfg_attr(feature = "sgx", no_std)]
 
 #[cfg(feature = "sgx")]
@@ -181,7 +198,7 @@ impl Vdso {
             (5, 0..=2) => VdsoDataPtr::V5_0(vdso_data_v5_0::vdsodata_ptr(vdso_addr)),
             (5, 3..=5) => VdsoDataPtr::V5_3(vdso_data_v5_3::vdsodata_ptr(vdso_addr)),
             (5, 6..=8) => VdsoDataPtr::V5_6(vdso_data_v5_6::vdsodata_ptr(vdso_addr)),
-            (5, 9..=12) => VdsoDataPtr::V5_9(vdso_data_v5_9::vdsodata_ptr(vdso_addr)),
+            (5, 9..=16) => VdsoDataPtr::V5_9(vdso_data_v5_9::vdsodata_ptr(vdso_addr)),
             (_, _) => return_errno!(EINVAL, "Vdso match kernel release failed"),
         })
     }

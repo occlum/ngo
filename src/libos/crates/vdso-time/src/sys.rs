@@ -122,7 +122,7 @@ pub enum VdsoDataPtr {
     V5_3(*const vdso_data_v5_3),
     // === Linux 5.6 - 5.8 ===
     V5_6(*const vdso_data_v5_6),
-    // === Linux 5.9 - 5.12 ===
+    // === Linux 5.9 - 5.16 ===
     V5_9(*const vdso_data_v5_9),
 }
 
@@ -521,7 +521,7 @@ impl VdsoData for vdso_data_v5_6 {
     }
 }
 
-// === Linux 5.9 - 5.12 ===
+// === Linux 5.9 - 5.16 ===
 // struct vdso_data
 
 #[repr(C)]
