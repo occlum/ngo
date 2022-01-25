@@ -99,9 +99,11 @@ pub extern "C" fn occlum_ecall_init(
         async_rt::task::SpawnOptions::new(async {
             let io_uring = &crate::io_uring::SINGLETON;
             loop {
-                for _ in 0..100 {
-                    io_uring.poll_completions();
+                let mut remain_tries = 100;
+                while remain_tries > 0 && io_uring.poll_completions() == 0 {
+                    remain_tries -= 1;
                 }
+
                 async_rt::sched::yield_().await;
             }
         })

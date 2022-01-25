@@ -451,7 +451,11 @@ mod test {
                     let ring = ring.clone();
                     async move {
                         loop {
-                            ring.poll_completions();
+                            let mut remain_tries = 100;
+                            while remain_tries > 0 && ring.poll_completions() == 0 {
+                                remain_tries -= 1;
+                            }
+
                             async_rt::sched::yield_().await;
                         }
                     }
