@@ -28,6 +28,13 @@ impl Parks {
         sleep_thread.take();
     }
 
+    pub fn len(&self) -> usize {
+        self.sleep_threads.len()
+    }
+}
+
+#[cfg(feature = "park")]
+impl Parks {
     pub fn park(&self) {
         std::thread::park();
     }
@@ -52,8 +59,12 @@ impl Parks {
             self.unpark(thread_id);
         }
     }
+}
 
-    pub fn len(&self) -> usize {
-        self.sleep_threads.len()
-    }
+#[cfg(not(feature = "park"))]
+impl Parks {
+    pub fn park(&self) {}
+    pub fn park_timeout(&self, _duration: core::time::Duration) {}
+    pub fn unpark(&self, _thread_id: usize) {}
+    pub fn unpark_all(&self) {}
 }
