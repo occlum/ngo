@@ -1,5 +1,6 @@
 use block_device::{BioReq, BioSubmission, BioType, BlockDevice};
 use fs::File;
+use std::fmt;
 use std::io::prelude::*;
 use std::io::{IoSlice, IoSliceMut, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -18,7 +19,6 @@ use crate::HostDisk;
 /// system calls from the enclave triggers enclave switching, which is costly.
 ///
 /// It is recommended to use `IoUringDisk` for an optimal performance.
-#[derive(Debug)]
 pub struct SyncIoDisk {
     file: Mutex<File>,
     path: PathBuf,
@@ -155,6 +155,15 @@ impl HostDisk for SyncIoDisk {
 
     fn path(&self) -> &Path {
         self.path.as_path()
+    }
+}
+
+impl fmt::Debug for SyncIoDisk {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SyncIoDisk")
+            .field("path", &self.path)
+            .field("total_blocks", &self.total_blocks)
+            .finish()
     }
 }
 
