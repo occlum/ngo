@@ -18,6 +18,8 @@
 #![feature(duration_constants)]
 #![feature(get_mut_unchecked)]
 #![allow(dead_code)]
+#![feature(asm)]
+#![feature(bench_black_box)]
 
 #[cfg(feature = "sgx")]
 #[macro_use]

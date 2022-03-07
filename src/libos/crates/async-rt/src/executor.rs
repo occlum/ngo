@@ -74,6 +74,23 @@ impl Executor {
 
         self.parks.register(thread_id);
 
+        // The MAX_BUSY_LOOP_NUMBER and MAX_IDLE_LOOP_NUMBER can be used to
+        // adjust the idle loop waiting time before parking.
+        pub const MAX_BUSY_LOOP_NUMBER: usize = 1000;
+        pub const MAX_IDLE_LOOP_NUMBER: usize = 10;
+
+        let busy_loop = {
+            || {
+                for _ in 0..MAX_BUSY_LOOP_NUMBER {
+                    unsafe {
+                        std::hint::black_box(asm!("nop"));
+                    }
+                }
+            }
+        };
+
+        let mut idle_loop = 0;
+
         loop {
             let task_option = self.scheduler.dequeue_task(thread_id);
 
@@ -87,11 +104,21 @@ impl Executor {
 
             match task_option {
                 Some(task) => {
+                    idle_loop = 0;
                     task.reset_enqueued();
 
                     self.execute_task(task)
                 }
-                None => self.parks.park(),
+                None => {
+                    idle_loop += 1;
+
+                    if idle_loop <= MAX_IDLE_LOOP_NUMBER {
+                        busy_loop();
+                    } else {
+                        idle_loop = 0;
+                        self.parks.park();
+                    }
+                }
             }
         }
     }
