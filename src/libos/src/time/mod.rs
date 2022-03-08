@@ -149,21 +149,55 @@ pub fn do_clock_getres(clockid: ClockId) -> Result<timespec_t> {
     Ok(res)
 }
 
+const TIMER_ABSTIME: i32 = 0x01;
+
 pub async fn do_nanosleep(req: &timespec_t, rem: Option<&mut timespec_t>) -> Result<()> {
+    do_clock_nanosleep(ClockId::CLOCK_REALTIME, 0, req, rem).await?;
+    Ok(())
+}
+
+pub async fn do_clock_nanosleep(
+    clockid: ClockId,
+    flags: i32,
+    req: &timespec_t,
+    rem: Option<&mut timespec_t>,
+) -> Result<()> {
+    match clockid {
+        ClockId::CLOCK_REALTIME | ClockId::CLOCK_MONOTONIC | ClockId::CLOCK_BOOTTIME => {}
+        _ => {
+            return_errno!(EINVAL, "clock_id was invalid");
+        }
+    }
+
     let waiter = Waiter::new();
-    let mut duration = Duration::new(req.sec as u64, req.nsec as u32);
+    let mut duration = {
+        if flags == TIMER_ABSTIME {
+            let duration_now = vdso_time::clock_gettime(clockid)?;
+            let duration_target = req.as_duration();
+            if duration_target > duration_now {
+                duration_target - duration_now
+            } else {
+                Duration::ZERO
+            }
+        } else {
+            req.as_duration()
+        }
+    };
+
     if let Ok(_) = waiter.wait_timeout(Some(&mut duration)).await {
         // TODO: support interrupt sleep.
         // return_errno!(EINTR, "sleep interrupted");
         unreachable!("this waiter can not be interrupted");
     }
 
-    if let Some(rem) = rem {
-        // wait_timeout() can guarantee that rem <= req.
-        *rem = timespec_t {
-            sec: duration.as_secs() as i64,
-            nsec: duration.subsec_nanos() as i64,
-        };
+    if flags != TIMER_ABSTIME {
+        if let Some(rem) = rem {
+            // wait_timeout() can guarantee that rem <= req.
+            *rem = timespec_t {
+                sec: duration.as_secs() as i64,
+                nsec: duration.subsec_nanos() as i64,
+            };
+        }
     }
     Ok(())
 }
