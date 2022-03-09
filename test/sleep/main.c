@@ -87,10 +87,10 @@ static int timespec_equal(const struct timespec *a, const struct timespec *b,
 // Return SUCCESS(1) if check passed, FAIL(-1) if check failed
 static int check_nanosleep(const struct timespec *expected_sleep_period) {
     // The time obtained from Occlum is not very precise.
-    // Here we take 1 millisecond as the time precision of Occlum.
+    // Here we take 1.5 millisecond as the time precision of Occlum.
     static struct timespec OS_TIME_PRECISION = {
         .tv_sec = 0,
-        .tv_nsec = 1 * MS,
+        .tv_nsec = 1 * MS + 500 * US,
     };
 
     struct timespec begin_timestamp, end_timestamp;
