@@ -63,7 +63,9 @@ extern crate serde;
 extern crate serde_json;
 #[macro_use]
 extern crate memoffset;
+extern crate async_recursion;
 extern crate ctor;
+extern crate flume;
 extern crate intrusive_collections;
 extern crate itertools;
 extern crate resolv_conf;

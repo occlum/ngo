@@ -26,8 +26,9 @@ impl UserSpaceVMManager {
 
             let addr = ptr as usize;
             debug!(
-                "allocated rsrv addr is 0x{:x}, len is 0x{:x}",
-                addr, rsrv_mem_size
+                "allocated rsrv memory range is: [0x{:x}, 0x{:x}]",
+                addr,
+                addr + rsrv_mem_size
             );
             VMRange::from_unchecked(addr, addr + rsrv_mem_size)
         };
@@ -47,7 +48,8 @@ impl UserSpaceVMManager {
 #[dtor]
 fn free_user_space() {
     let range = USER_SPACE_VM_MANAGER.range();
-    assert!(USER_SPACE_VM_MANAGER.verified_clean_when_exit());
+    USER_SPACE_VM_MANAGER.return_back_ranges_without_cleaning();
+    USER_SPACE_VM_MANAGER.verified_clean_when_exit();
     let addr = range.start() as *const c_void;
     let size = range.size();
     info!("free user space VM: {:?}", range);

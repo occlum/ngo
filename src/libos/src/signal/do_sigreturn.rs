@@ -234,7 +234,7 @@ fn handle_signals_by_user(
         )
         .unwrap();
 
-        let mem_chunks = thread.vm().mem_chunks().read().unwrap();
+        let mem_chunks = thread.vm().mem_chunks().inner();
         if mem_chunks
             .iter()
             .find(|chunk| chunk.range().is_superset_of(&stack_range))

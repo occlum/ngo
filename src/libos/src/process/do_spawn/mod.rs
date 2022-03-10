@@ -24,7 +24,7 @@ mod init_stack;
 mod init_vm;
 
 /// Spawn a new process and execute it in a new host thread.
-pub fn do_spawn(
+pub async fn do_spawn(
     elf_path: &str,
     argv: &[CString],
     envp: &[CString],
@@ -44,41 +44,43 @@ pub fn do_spawn(
         current_ref,
         exec_now,
     )
+    .await
 }
 
 /// Spawn a new process but execute it later.
-pub fn do_spawn_root(
-    elf_path: &str,
-    argv: &[CString],
-    envp: &[CString],
-    file_actions: &[FileAction],
+pub async fn do_spawn_root(
+    elf_path: String,
+    argv: Vec<CString>,
+    envp: Vec<CString>,
+    file_actions: Vec<FileAction>,
     spawn_attributes: Option<SpawnAttr>,
-    host_stdio_fds: &HostStdioFds,
-    wake_host: *mut i32,
-    current_ref: &ThreadRef,
+    host_stdio_fds: HostStdioFds,
+    host_waker: Option<HostWaker>,
+    current_ref: ThreadRef,
 ) -> Result<pid_t> {
     let exec_now = false;
     do_spawn_common(
-        elf_path,
-        argv,
-        envp,
-        file_actions,
+        &elf_path,
+        argv.as_slice(),
+        envp.as_slice(),
+        file_actions.as_slice(),
         spawn_attributes,
-        Some(host_stdio_fds),
-        Some(wake_host),
-        current_ref,
+        Some(&host_stdio_fds),
+        host_waker,
+        &current_ref,
         exec_now,
     )
+    .await
 }
 
-fn do_spawn_common(
+async fn do_spawn_common(
     elf_path: &str,
     argv: &[CString],
     envp: &[CString],
     file_actions: &[FileAction],
     spawn_attributes: Option<SpawnAttr>,
     host_stdio_fds: Option<&HostStdioFds>,
-    wake_host: Option<*mut i32>,
+    host_waker: Option<HostWaker>,
     current_ref: &ThreadRef,
     exec_now: bool,
 ) -> Result<pid_t> {
@@ -89,9 +91,10 @@ fn do_spawn_common(
         file_actions,
         spawn_attributes,
         host_stdio_fds,
-        wake_host,
+        host_waker,
         current_ref,
-    )?;
+    )
+    .await?;
 
     let new_main_thread = new_process_ref
         .main_thread()
@@ -106,14 +109,14 @@ fn do_spawn_common(
 }
 
 /// Create a new process and its main thread.
-fn new_process(
+async fn new_process(
     file_path: &str,
     argv: &[CString],
     envp: &[CString],
     file_actions: &[FileAction],
     spawn_attributes: Option<SpawnAttr>,
     host_stdio_fds: Option<&HostStdioFds>,
-    wake_host_ptr: Option<*mut i32>,
+    host_waker: Option<HostWaker>,
     current_ref: &ThreadRef,
 ) -> Result<(ProcessRef, CpuContext)> {
     let (new_process_ref, init_cpu_state) = new_process_common(
@@ -123,11 +126,12 @@ fn new_process(
         file_actions,
         spawn_attributes,
         host_stdio_fds,
-        wake_host_ptr,
+        host_waker,
         current_ref,
         None,
         None,
-    )?;
+    )
+    .await?;
     table::add_process(new_process_ref.clone());
     table::add_thread(new_process_ref.main_thread().unwrap());
 
@@ -135,7 +139,7 @@ fn new_process(
 }
 
 /// Create a new process for execve which will use same parent, pid, tid
-pub fn new_process_for_exec(
+pub async fn new_process_for_exec(
     file_path: &str,
     argv: &[CString],
     envp: &[CString],
@@ -157,19 +161,20 @@ pub fn new_process_for_exec(
         current_ref,
         reuse_tid,
         parent_process,
-    )?;
+    )
+    .await?;
 
     Ok((new_process_ref, init_cpu_state))
 }
 
-fn new_process_common(
+async fn new_process_common(
     file_path: &str,
     argv: &[CString],
     envp: &[CString],
     file_actions: &[FileAction],
     spawn_attributes: Option<SpawnAttr>,
     host_stdio_fds: Option<&HostStdioFds>,
-    wake_host_ptr: Option<*mut i32>,
+    host_waker: Option<HostWaker>,
     current_ref: &ThreadRef,
     reuse_tid: Option<ThreadId>,
     parent_process: Option<ProcessRef>,
@@ -211,7 +216,7 @@ fn new_process_common(
     let (new_process_ref, init_cpu_state) = {
         let process_ref = current_ref.process().clone();
 
-        let vm = init_vm::do_init(&exec_elf_hdr, &ldso_elf_hdr)?;
+        let vm = init_vm::do_init(&exec_elf_hdr, &ldso_elf_hdr).await?;
         let mut auxvec = init_auxvec(&vm, &exec_elf_hdr)?;
 
         // Notify debugger to load the symbols from elf file
@@ -310,8 +315,7 @@ fn new_process_common(
             match reuse_tid {
                 None => {
                     // spawn new process path
-                    if let Some(wake_host_ptr) = wake_host_ptr {
-                        let host_waker = HostWaker::new(wake_host_ptr)?;
+                    if let Some(host_waker) = host_waker {
                         builder = builder.host_waker(host_waker);
                     }
                     process_ref
