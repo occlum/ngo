@@ -2,14 +2,17 @@ use super::*;
 
 use super::free_space_manager::VMFreeSpaceManager as FreeRangeManager;
 use super::vm_area::*;
+use super::vm_clean::CleanReq;
 use super::vm_perms::VMPerms;
 use super::vm_util::*;
-use std::collections::BTreeSet;
 
-use intrusive_collections::rbtree::{Link, RBTree};
+use intrusive_collections::rbtree::RBTree;
 use intrusive_collections::Bound;
-use intrusive_collections::RBTreeLink;
-use intrusive_collections::{intrusive_adapter, KeyAdapter};
+use std::collections::HashSet;
+
+const PROCESS_SET_INIT_SIZE: usize = 5;
+
+pub type ChunkManagerRef = Arc<SgxMutex<ChunkManager>>;
 
 /// Memory chunk manager.
 ///
@@ -18,16 +21,16 @@ use intrusive_collections::{intrusive_adapter, KeyAdapter};
 /// ChunkManager is implemented basically with two data structures: a red-black tree to track vmas in use and a FreeRangeManager to track
 /// ranges which are free.
 /// For vmas-in-use, there are two sentry vmas with zero length at the front and end of the red-black tree.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct ChunkManager {
     range: VMRange,
-    free_size: usize,
     vmas: RBTree<VMAAdapter>,
-    free_manager: FreeRangeManager,
+    free_manager: FreeManager,
+    process_set: HashSet<pid_t>,
 }
 
 impl ChunkManager {
-    pub fn from(addr: usize, size: usize) -> Result<Self> {
+    pub fn from(addr: usize, size: usize) -> Result<ChunkManagerRef> {
         let range = VMRange::new(addr, addr + size)?;
         let vmas = {
             let start = range.start();
@@ -48,12 +51,50 @@ impl ChunkManager {
             new_tree.insert(end_sentry);
             new_tree
         };
-        Ok(ChunkManager {
+        let mut process_set = HashSet::with_capacity(PROCESS_SET_INIT_SIZE);
+        process_set.insert(current!().process().pid());
+
+        let mut manager = Self {
             range,
-            free_size: range.size(),
             vmas,
-            free_manager: FreeRangeManager::new(range.clone()),
-        })
+            free_manager: FreeManager::new(&range),
+            process_set,
+        };
+
+        let mut arc_self = Arc::new(SgxMutex::new(manager));
+        unsafe {
+            Arc::get_mut_unchecked(&mut arc_self)
+                .lock()
+                .unwrap()
+                .free_manager
+                .arc_self = Some(arc_self.clone());
+        }
+        Ok(arc_self)
+    }
+
+    pub fn new(vm_range: VMRange) -> Result<ChunkManagerRef> {
+        ChunkManager::from(vm_range.start(), vm_range.size())
+    }
+
+    pub fn add_process(&mut self, pid: pid_t) {
+        self.process_set.insert(pid);
+    }
+
+    pub fn is_owned_by_current_process(&self) -> bool {
+        let current_pid = current!().process().pid();
+        self.process_set.contains(&current_pid) && self.process_set.len() == 1
+    }
+
+    // Clean vmas when munmap a MultiVMA chunk, return whether this chunk is cleaned
+    pub fn clean_multi_vmas(&mut self) -> bool {
+        let current_pid = current!().process().pid();
+        self.clean_vmas_with_pid(current_pid);
+        self.process_set.remove(&current_pid);
+        if self.is_empty() {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     pub fn range(&self) -> &VMRange {
@@ -64,15 +105,24 @@ impl ChunkManager {
         &self.vmas
     }
 
-    pub fn free_size(&self) -> &usize {
-        &self.free_size
+    pub fn free_size(&self) -> usize {
+        self.free_manager.free_size
+    }
+
+    pub fn process_set(&mut self) -> &mut HashSet<pid_t> {
+        &mut self.process_set
     }
 
     pub fn is_empty(&self) -> bool {
-        self.vmas.iter().count() == 2 // only sentry vmas
+        self.free_size() == self.range.size()
     }
 
-    pub fn clean_vmas_with_pid(&mut self, pid: pid_t) {
+    pub fn return_clean_vm(&mut self, clean_range: &VMRange) -> Result<()> {
+        self.free_manager.return_clean_vm(clean_range)
+    }
+
+    // Clean vmas that are not munmap-ed by user before exiting.
+    fn clean_vmas_with_pid(&mut self, pid: pid_t) {
         let mut vmas_cursor = self.vmas.cursor_mut();
         vmas_cursor.move_next(); // move to the first element of the tree
         while !vmas_cursor.is_null() {
@@ -89,13 +139,13 @@ impl ChunkManager {
                 VMPerms::apply_perms(vma, VMPerms::default());
             }
 
-            unsafe {
-                let buf = vma.as_slice_mut();
-                buf.iter_mut().for_each(|b| *b = 0)
-            }
+            // This function is normally called when trying to drop this default chunk but there is vma that is not munmap-ed by user.
+            // Here, we don't do the async way because when the cleaning is finished, the VMManager has missed the time to recycle this chunk.
 
-            self.free_manager.add_range_back_to_free_manager(vma);
-            self.free_size += vma.size();
+            unsafe {
+                vma.clean();
+            }
+            self.free_manager.return_clean_vm(vma.range());
 
             // Remove this vma from vmas list
             vmas_cursor.remove();
@@ -107,12 +157,8 @@ impl ChunkManager {
         let size = *options.size();
         let align = *options.align();
 
-        if let VMMapAddr::Force(addr) = addr {
-            self.munmap(addr, size)?;
-        }
-
         // Find and allocate a new range for this mmap request
-        let new_range = self.free_manager.find_free_range(size, align, addr)?;
+        let new_range = self.free_manager.inner.find_free_range(size, align, addr)?;
         let new_addr = new_range.start();
         let writeback_file = options.writeback_file().clone();
         let current_pid = current!().process().pid();
@@ -124,6 +170,7 @@ impl ChunkManager {
         if let Err(e) = ret {
             // Return the free range before return with error
             self.free_manager
+                .inner
                 .add_range_back_to_free_manager(new_vma.range());
             return_errno!(e.errno(), "failed to mmap");
         }
@@ -132,10 +179,35 @@ impl ChunkManager {
         if !options.perms().is_default() {
             VMPerms::apply_perms(&new_vma, new_vma.perms());
         }
-        self.free_size -= new_vma.size();
+        self.free_manager.free_size -= new_vma.size();
         // After initializing, we can safely insert the new VMA
         self.vmas.insert(VMAObj::new_vma_obj(new_vma));
         Ok(new_addr)
+    }
+
+    pub fn munmap(&mut self, addr: usize, size: usize) -> Result<()> {
+        let size = {
+            if size == 0 {
+                return_errno!(EINVAL, "size of munmap must not be zero");
+            }
+            align_up(size, PAGE_SIZE)
+        };
+        let munmap_range = {
+            let munmap_range = VMRange::new(addr, addr + size)?;
+
+            let effective_munmap_range_opt = munmap_range.intersect(&self.range);
+            if effective_munmap_range_opt.is_none() {
+                return Ok(());
+            }
+
+            let effective_munmap_range = effective_munmap_range_opt.unwrap();
+            if effective_munmap_range.empty() {
+                return Ok(());
+            }
+            effective_munmap_range
+        };
+
+        self.munmap_range(munmap_range)
     }
 
     pub fn munmap_range(&mut self, range: VMRange) -> Result<()> {
@@ -185,42 +257,10 @@ impl ChunkManager {
                 }
             }
 
-            // Reset zero
-            unsafe {
-                let buf = intersection_vma.as_slice_mut();
-                buf.iter_mut().for_each(|b| *b = 0)
-            }
-
             self.free_manager
-                .add_range_back_to_free_manager(intersection_vma.range());
-            self.free_size += intersection_vma.size();
+                .clean_dirty_range_and_return_back(&intersection_vma);
         }
         Ok(())
-    }
-
-    pub fn munmap(&mut self, addr: usize, size: usize) -> Result<()> {
-        let size = {
-            if size == 0 {
-                return_errno!(EINVAL, "size of munmap must not be zero");
-            }
-            align_up(size, PAGE_SIZE)
-        };
-        let munmap_range = {
-            let munmap_range = VMRange::new(addr, addr + size)?;
-
-            let effective_munmap_range_opt = munmap_range.intersect(&self.range);
-            if effective_munmap_range_opt.is_none() {
-                return Ok(());
-            }
-
-            let effective_munmap_range = effective_munmap_range_opt.unwrap();
-            if effective_munmap_range.empty() {
-                return Ok(());
-            }
-            effective_munmap_range
-        };
-
-        self.munmap_range(munmap_range)
     }
 
     pub fn parse_mremap_options(&mut self, options: &VMRemapOptions) -> Result<VMRemapResult> {
@@ -484,7 +524,7 @@ impl ChunkManager {
 
     // Returns whether the requested range is free
     fn is_free_range(&self, request_range: &VMRange) -> bool {
-        self.free_manager.is_free_range(request_range)
+        self.free_manager.inner.is_free_range(request_range)
     }
 }
 
@@ -497,7 +537,43 @@ impl VMRemapParser for ChunkManager {
 impl Drop for ChunkManager {
     fn drop(&mut self) {
         assert!(self.is_empty());
-        assert!(self.free_size == self.range.size());
-        assert!(self.free_manager.free_size() == self.range.size());
+        assert!(self.free_manager.free_size == self.range.size());
+        assert!(self.free_manager.inner.free_size() == self.range.size());
+    }
+}
+
+#[derive(Debug)]
+struct FreeManager {
+    free_size: usize,
+    arc_self: Option<Arc<SgxMutex<ChunkManager>>>,
+    inner: FreeRangeManager,
+}
+
+impl FreeManager {
+    fn new(range: &VMRange) -> Self {
+        Self {
+            free_size: range.size(),
+            arc_self: None,
+            inner: FreeRangeManager::new(range.clone()),
+        }
+    }
+
+    fn return_clean_vm(&mut self, clean_range: &VMRange) -> Result<()> {
+        self.inner.add_range_back_to_free_manager(clean_range)?;
+        self.free_size += clean_range.size();
+        Ok(())
+    }
+
+    // These requests are either send to clean queue or clean by current thread
+    fn clean_dirty_range_and_return_back(&mut self, target_vma: &VMArea) {
+        if CLEAN_QUEUE.is_clean_worker_needed(target_vma.size()) {
+            let clean_reqs = CleanReq::new_reqs(target_vma.range().clone(), self.arc_self.clone());
+            if CLEAN_QUEUE.send_reqs(clean_reqs).is_ok() {
+                return;
+            }
+        }
+
+        unsafe { target_vma.clean() };
+        self.return_clean_vm(target_vma);
     }
 }

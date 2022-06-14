@@ -9,6 +9,7 @@ use crate::process::ThreadRef;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
+use vm_chunk_manager::ChunkManagerRef;
 
 // For single VMA chunk, the vma struct doesn't need to update the pid field. Because all the chunks are recorded by the process VM already.
 pub const DUMMY_CHUNK_PROCESS_ID: pid_t = 0;
@@ -66,8 +67,15 @@ impl Chunk {
         &self.range
     }
 
-    pub fn internal(&self) -> &ChunkType {
+    pub(super) fn internal(&self) -> &ChunkType {
         &self.internal
+    }
+
+    pub fn is_empty(&self) -> bool {
+        match self.internal() {
+            ChunkType::MultiVMA(internal_manager) => internal_manager.lock().unwrap().is_empty(),
+            ChunkType::SingleVMA(_) => false,
+        }
     }
 
     pub fn get_vma_for_single_vma_chunk(&self) -> VMArea {
@@ -85,10 +93,9 @@ impl Chunk {
     }
 
     pub fn new_default_chunk(vm_range: VMRange) -> Result<Self> {
-        let internal_manager = ChunkInternal::new(vm_range)?;
         Ok(Self {
             range: vm_range,
-            internal: ChunkType::MultiVMA(SgxMutex::new(internal_manager)),
+            internal: ChunkType::MultiVMA(ChunkManager::new(vm_range)?),
         })
     }
 
@@ -121,7 +128,7 @@ impl Chunk {
 
     pub fn is_owned_by_current_process(&self) -> bool {
         let current = current!();
-        let process_mem_chunks = current.vm().mem_chunks().read().unwrap();
+        let process_mem_chunks = current.vm().mem_chunks().0.read().unwrap();
         if !process_mem_chunks
             .iter()
             .any(|chunk| chunk.range() == self.range())
@@ -158,10 +165,10 @@ impl Chunk {
         } else {
             unreachable!();
         };
-        if internal_manager.chunk_manager.free_size() < options.size() {
+        if &internal_manager.free_size() < options.size() {
             return_errno!(ENOMEM, "no enough size without trying. try other chunks");
         }
-        return internal_manager.chunk_manager.mmap(options);
+        return internal_manager.mmap(options);
     }
 
     pub fn try_mmap(&self, options: &VMMapOptions) -> Result<usize> {
@@ -175,10 +182,10 @@ impl Chunk {
             unreachable!();
         };
         trace!("get lock, try mmap in chunk: {:?}", self);
-        if internal_manager.chunk_manager().free_size() < options.size() {
+        if &internal_manager.free_size() < options.size() {
             return_errno!(ENOMEM, "no enough size without trying. try other chunks");
         }
-        internal_manager.chunk_manager().mmap(options)
+        internal_manager.mmap(options)
     }
 
     pub fn is_single_vma(&self) -> bool {
@@ -228,11 +235,7 @@ impl Chunk {
                 }
             }
             ChunkType::MultiVMA(internal_manager) => {
-                return internal_manager
-                    .lock()
-                    .unwrap()
-                    .chunk_manager
-                    .find_mmap_region(addr);
+                return internal_manager.lock().unwrap().find_mmap_region(addr);
             }
         }
     }
@@ -243,64 +246,120 @@ impl Chunk {
             ChunkType::MultiVMA(internal_manager) => internal_manager
                 .lock()
                 .unwrap()
-                .chunk_manager
                 .is_free_range(request_range),
         }
     }
 }
 
 #[derive(Debug)]
-pub enum ChunkType {
+pub(super) enum ChunkType {
     SingleVMA(SgxMutex<VMArea>),
-    MultiVMA(SgxMutex<ChunkInternal>),
+    MultiVMA(ChunkManagerRef),
 }
 
+// MemChunks is the structure to track all the chunks which are used by this process.
 #[derive(Debug)]
-pub struct ChunkInternal {
-    chunk_manager: ChunkManager,
-    process_set: HashSet<pid_t>,
+pub struct MemChunks(Arc<RwLock<HashSet<ChunkRef>>>);
+
+impl Default for MemChunks {
+    fn default() -> Self {
+        MemChunks(Arc::new(RwLock::new(HashSet::new())))
+    }
 }
 
-const PROCESS_SET_INIT_SIZE: usize = 5;
-
-impl ChunkInternal {
-    pub fn new(vm_range: VMRange) -> Result<Self> {
-        let chunk_manager = ChunkManager::from(vm_range.start(), vm_range.size())?;
-
-        let mut process_set = HashSet::with_capacity(PROCESS_SET_INIT_SIZE);
-        process_set.insert(current!().process().pid());
-        Ok(Self {
-            chunk_manager,
-            process_set,
-        })
+impl MemChunks {
+    pub fn inner(&self) -> RwLockReadGuard<HashSet<ChunkRef>> {
+        self.0.read().unwrap()
     }
 
-    pub fn add_process(&mut self, pid: pid_t) {
-        self.process_set.insert(pid);
+    pub fn inner_mut(&self) -> RwLockWriteGuard<HashSet<ChunkRef>> {
+        self.0.write().unwrap()
     }
 
-    pub fn chunk_manager(&mut self) -> &mut ChunkManager {
-        &mut self.chunk_manager
+    pub fn add_mem_chunk(&self, chunk: ChunkRef) {
+        let mut mem_chunks = self.0.write().unwrap();
+        mem_chunks.insert(chunk);
     }
 
-    pub fn is_owned_by_current_process(&self) -> bool {
-        let current_pid = current!().process().pid();
-        self.process_set.contains(&current_pid) && self.process_set.len() == 1
+    pub fn remove_mem_chunk(&self, chunk: &ChunkRef) {
+        let mut mem_chunks = self.0.write().unwrap();
+        mem_chunks.remove(chunk);
     }
 
-    pub fn free_size(&self) -> usize {
-        *self.chunk_manager.free_size()
+    pub fn len(&self) -> usize {
+        self.0.read().unwrap().len()
     }
 
-    // Clean vmas when munmap a MultiVMA chunk, return whether this chunk is cleaned
-    pub fn clean_multi_vmas(&mut self) -> bool {
-        let current_pid = current!().process().pid();
-        self.chunk_manager.clean_vmas_with_pid(current_pid);
-        if self.chunk_manager.is_empty() {
-            self.process_set.remove(&current_pid);
-            return true;
-        } else {
-            return false;
+    // Try merging all connecting single VMAs of the process.
+    // This is a very expensive operation.
+    pub fn merge_all_single_vma_chunks(&self) -> Result<Vec<VMArea>> {
+        let mut mem_chunks = self.0.write().unwrap();
+        let mut single_vma_chunks = mem_chunks
+            .drain_filter(|chunk| chunk.is_single_vma())
+            .collect::<Vec<ChunkRef>>();
+        single_vma_chunks.sort_unstable_by(|chunk_a, chunk_b| {
+            chunk_a
+                .range()
+                .start()
+                .partial_cmp(&chunk_b.range().start())
+                .unwrap()
+        });
+
+        // Try merging connecting VMAs
+        for chunks in single_vma_chunks.windows(2) {
+            let chunk_a = &chunks[0];
+            let chunk_b = &chunks[1];
+            let mut vma_a = match chunk_a.internal() {
+                ChunkType::MultiVMA(_) => {
+                    unreachable!();
+                }
+                ChunkType::SingleVMA(vma) => vma.lock().unwrap(),
+            };
+
+            let mut vma_b = match chunk_b.internal() {
+                ChunkType::MultiVMA(_) => {
+                    unreachable!();
+                }
+                ChunkType::SingleVMA(vma) => vma.lock().unwrap(),
+            };
+
+            if VMArea::can_merge_vmas(&vma_a, &vma_b) {
+                let new_start = vma_a.start();
+                vma_b.set_start(new_start);
+                // set vma_a to zero
+                vma_a.set_end(new_start);
+            }
         }
+
+        // Remove single dummy VMA chunk
+        single_vma_chunks
+            .drain_filter(|chunk| chunk.is_single_dummy_vma())
+            .collect::<Vec<ChunkRef>>();
+
+        // Get all merged chunks whose vma and range are conflict
+        let merged_chunks = single_vma_chunks
+            .drain_filter(|chunk| chunk.is_single_vma_with_conflict_size())
+            .collect::<Vec<ChunkRef>>();
+
+        // Get merged vmas
+        let mut new_vmas = Vec::new();
+        merged_chunks.iter().for_each(|chunk| {
+            let vma = chunk.get_vma_for_single_vma_chunk();
+            new_vmas.push(vma)
+        });
+
+        // Add all merged vmas back to mem_chunk list of the process
+        new_vmas.iter().for_each(|vma| {
+            let chunk = Arc::new(Chunk::new_chunk_with_vma(vma.clone()));
+            mem_chunks.insert(chunk);
+        });
+
+        // Add all unchanged single vma chunks back to mem_chunk list
+        while single_vma_chunks.len() > 0 {
+            let chunk = single_vma_chunks.pop().unwrap();
+            mem_chunks.insert(chunk);
+        }
+
+        Ok(new_vmas)
     }
 }

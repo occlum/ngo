@@ -61,12 +61,10 @@ use fs::{FileDesc, FileRef};
 use process::{Process, ProcessRef};
 use std::fmt;
 
-mod chunk;
 mod free_space_manager;
 mod process_vm;
 mod user_space_vm;
 mod vm_area;
-mod vm_chunk_manager;
 mod vm_layout;
 mod vm_manager;
 mod vm_perms;
@@ -82,7 +80,7 @@ pub use self::vm_perms::VMPerms;
 pub use self::vm_range::VMRange;
 pub use self::vm_util::{VMInitializer, VMMapOptionsBuilder};
 
-pub fn do_mmap(
+pub async fn do_mmap(
     addr: usize,
     size: usize,
     perms: VMPerms,
@@ -102,7 +100,10 @@ pub fn do_mmap(
         );
     }
 
-    current!().vm().mmap(addr, size, perms, flags, fd, offset)
+    current!()
+        .vm()
+        .mmap(addr, size, perms, flags, fd, offset)
+        .await
 }
 
 pub fn do_munmap(addr: usize, size: usize) -> Result<()> {
@@ -111,7 +112,7 @@ pub fn do_munmap(addr: usize, size: usize) -> Result<()> {
     current!().vm().munmap(addr, size)
 }
 
-pub fn do_mremap(
+pub async fn do_mremap(
     old_addr: usize,
     old_size: usize,
     new_size: usize,
@@ -121,7 +122,10 @@ pub fn do_mremap(
         "mremap: old_addr: {:#x}, old_size: {:#x}, new_size: {:#x}, flags: {:?}",
         old_addr, old_size, new_size, flags
     );
-    current!().vm().mremap(old_addr, old_size, new_size, flags)
+    current!()
+        .vm()
+        .mremap(old_addr, old_size, new_size, flags)
+        .await
 }
 
 pub fn do_mprotect(addr: usize, size: usize, perms: VMPerms) -> Result<()> {

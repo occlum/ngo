@@ -680,7 +680,7 @@ async fn do_mmap(
 ) -> Result<isize> {
     let perms = VMPerms::from_u32(perms as u32)?;
     let flags = MMapFlags::from_u32(flags as u32)?;
-    let addr = vm::do_mmap(addr, size, perms, flags, fd, offset as usize)?;
+    let addr = vm::do_mmap(addr, size, perms, flags, fd, offset as usize).await?;
     Ok(addr as isize)
 }
 
@@ -697,7 +697,7 @@ async fn do_mremap(
     new_addr: usize,
 ) -> Result<isize> {
     let flags = MRemapFlags::from_raw(flags as u32, new_addr)?;
-    let addr = vm::do_mremap(old_addr, old_size, new_size, flags)?;
+    let addr = vm::do_mremap(old_addr, old_size, new_size, flags).await?;
     Ok(addr as isize)
 }
 

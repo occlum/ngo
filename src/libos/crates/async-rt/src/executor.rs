@@ -20,6 +20,10 @@ pub fn shutdown() {
     EXECUTOR.shutdown()
 }
 
+pub fn is_shutdown() -> bool {
+    EXECUTOR.is_shutdown()
+}
+
 lazy_static! {
     pub(crate) static ref EXECUTOR: Executor = {
         let parallelism = CONFIG.parallelism();

@@ -10,7 +10,7 @@ use sgx_tse::*;
 use crate::fs::HostStdioFds;
 use crate::misc;
 use crate::prelude::*;
-use crate::process::{self, table, ProcessFilter, SpawnAttr};
+use crate::process::{self, table, HostWaker, ProcessFilter, SpawnAttr};
 use crate::signal::SigNum;
 use crate::time::up_time::init;
 use crate::util::host_file_util::{host_file_buffer, parse_host_file, write_host_file, HostFile};
@@ -343,8 +343,11 @@ fn do_new_process(
     validate_program_path(program_path)?;
 
     let file_actions = Vec::new();
-    let current = &process::IDLE;
-    let program_path_str = program_path.to_str().unwrap();
+    let current = process::IDLE.clone();
+    let program_path_str = program_path.to_str().unwrap().to_owned();
+    let argv = argv.clone();
+    let host_stdio_fds = host_stdio_fds.clone();
+    let host_waker = HostWaker::new(wake_host)?;
 
     // Called from occlum_ecall_new_process, give it an identical process group.
     // So that "occlum run/exec" process will have its own process group.
@@ -354,16 +357,18 @@ fn do_new_process(
         attribute
     };
 
-    let new_tid = process::do_spawn_root(
-        &program_path_str,
+    // This function is called in ECALL, and in a OS thread. Thus can use `block_on` here. Once the process is scheduled,
+    // block_on shouldn't be used, otherwise can cause system hang.
+    let new_tid = async_rt::task::block_on(process::do_spawn_root(
+        program_path_str,
         argv,
-        &env_concat,
-        &file_actions,
+        env_concat,
+        file_actions,
         Some(spawn_attribute),
         host_stdio_fds,
-        wake_host,
+        Some(host_waker),
         current,
-    )?;
+    ))?;
     Ok(new_tid)
 }
 

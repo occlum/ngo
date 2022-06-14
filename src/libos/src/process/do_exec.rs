@@ -50,7 +50,8 @@ pub async fn do_exec(
         current_ref,
         Some(tid),
         parent_process,
-    );
+    )
+    .await;
 
     if let Ok((new_process_ref, init_cpu_state)) = ret {
         let new_main_thread = new_process_ref

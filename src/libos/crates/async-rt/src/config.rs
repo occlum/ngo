@@ -8,6 +8,10 @@ pub fn set_parallelism(parallelism: u32) {
     CONFIG.set_parallelism(parallelism);
 }
 
+pub fn parallelism() -> u32 {
+    CONFIG.parallelism()
+}
+
 pub(crate) struct Config {
     inner: Mutex<Inner>,
 }

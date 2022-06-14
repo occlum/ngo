@@ -1,3 +1,6 @@
+use self::pgrp::ProcessGrp;
+use self::process::{ProcessBuilder, ProcessInner};
+use self::thread::{ThreadBuilder, ThreadId, ThreadInner};
 /// Process/thread subsystem.
 ///
 /// The subsystem implements process/thread-related system calls, which are
@@ -14,16 +17,12 @@ use crate::sched::{NiceValue, SchedAgent};
 use crate::signal::{SigDispositions, SigQueues};
 use crate::vm::ProcessVM;
 
-use self::host_waker::HostWaker;
-use self::pgrp::ProcessGrp;
-use self::process::{ProcessBuilder, ProcessInner};
-use self::thread::{ThreadBuilder, ThreadId, ThreadInner};
-
 pub use self::do_exit::handle_force_exit;
 pub use self::do_futex::{futex_wait, futex_wake};
 pub use self::do_robust_list::RobustListHead;
 pub use self::do_spawn::do_spawn_root;
 pub use self::do_vfork::do_vfork;
+pub use self::host_waker::HostWaker;
 pub use self::process::{Process, ProcessFilter, ProcessStatus, IDLE};
 pub use self::spawn_attribute::posix_spawnattr_t;
 pub use self::spawn_attribute::SpawnAttr;

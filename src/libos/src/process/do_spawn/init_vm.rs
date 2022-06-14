@@ -5,7 +5,7 @@ use crate::misc::{resource_t, rlimit_t};
 use crate::prelude::*;
 use crate::vm::{ProcessVM, ProcessVMBuilder};
 
-pub fn do_init<'a, 'b>(
+pub async fn do_init<'a, 'b>(
     elf_file: &'b ElfFile<'a>,
     ldso_elf_file: &'b ElfFile<'a>,
 ) -> Result<ProcessVM> {
@@ -14,6 +14,7 @@ pub fn do_init<'a, 'b>(
         // process will directly use memory configuration in Occlum.json
         ProcessVMBuilder::new(vec![elf_file, ldso_elf_file])
             .build()
+            .await
             .cause_err(|e| errno!(e.errno(), "failed to create process VM"))?
     } else {
         // Parent process is not idle process. Inherit parent process's resource limit.
@@ -34,6 +35,7 @@ pub fn do_init<'a, 'b>(
             .set_mmap_size(child_mmap_size as usize)
             .clone()
             .build()
+            .await
             .cause_err(|e| errno!(e.errno(), "failed to create process VM"))?
     };
 

@@ -8,6 +8,7 @@ version = "0.27.0"
 dependencies = [
  "aligned",
  "async-io",
+ "async-recursion",
  "async-rt",
  "atomic",
  "bitflags",
@@ -16,6 +17,7 @@ dependencies = [
  "ctor",
  "derive_builder",
  "errno",
+ "flume",
  "futures",
  "goblin",
  "host-socket",
@@ -95,6 +97,17 @@ dependencies = [
  "sgx_tstd",
  "sgx_types",
  "spin 0.7.0",
+]
+
+[[package]]
+name = "async-recursion"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2cda8f4bcc10624c4e85bc66b3f452cca98cfa5ca002dc83a16aad2367641bea"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

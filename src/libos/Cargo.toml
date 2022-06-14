@@ -43,6 +43,8 @@ itertools = { version = "0.10.0", default-features = false, features = ["use_all
 ctor = "0.1"
 spin = "0.7"
 regex = { git = "https://github.com/mesalock-linux/regex-sgx", default-features = false, features = ["std", "unicode", "mesalock_sgx"] }
+flume = { path = "../../deps/flume", default-features = false }
+async-recursion = "1.0.0"
 
 [patch.'https://github.com/apache/teaclave-sgx-sdk.git']
 sgx_tstd = { path = "../../deps/rust-sgx-sdk/sgx_tstd" }
