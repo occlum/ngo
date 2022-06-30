@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use async_io::socket::UnixAddr;
+use async_io::socket::Timeout;
 use io_uring_callback::IoUring;
 cfg_if::cfg_if! {
     if #[cfg(feature = "sgx")] {
@@ -28,6 +28,7 @@ pub struct Common<A: Addr + 'static, R: Runtime> {
     is_closed: AtomicBool,
     pollee: Pollee,
     inner: Mutex<Inner<A>>,
+    timeout: Mutex<Timeout>,
     phantom_data: PhantomData<(A, R)>,
 }
 
@@ -40,6 +41,7 @@ impl<A: Addr + 'static, R: Runtime> Common<A, R> {
         let is_closed = AtomicBool::new(false);
         let pollee = Pollee::new(Events::empty());
         let inner = Mutex::new(Inner::new());
+        let timeout = Mutex::new(Timeout::new());
         Ok(Self {
             host_fd,
             type_,
@@ -47,6 +49,7 @@ impl<A: Addr + 'static, R: Runtime> Common<A, R> {
             is_closed,
             pollee,
             inner,
+            timeout,
             phantom_data: PhantomData,
         })
     }
@@ -81,6 +84,7 @@ impl<A: Addr + 'static, R: Runtime> Common<A, R> {
         let is_closed = AtomicBool::new(false);
         let pollee = Pollee::new(Events::empty());
         let inner = Mutex::new(Inner::new());
+        let timeout = Mutex::new(Timeout::new());
         Self {
             host_fd,
             type_,
@@ -88,6 +92,7 @@ impl<A: Addr + 'static, R: Runtime> Common<A, R> {
             is_closed,
             pollee,
             inner,
+            timeout,
             phantom_data: PhantomData,
         }
     }
@@ -112,6 +117,22 @@ impl<A: Addr + 'static, R: Runtime> Common<A, R> {
         self.nonblocking.store(is_nonblocking, Ordering::Relaxed)
     }
 
+    pub fn send_timeout(&self) -> Option<Duration> {
+        self.timeout.lock().unwrap().sender_timeout()
+    }
+
+    pub fn recv_timeout(&self) -> Option<Duration> {
+        self.timeout.lock().unwrap().receiver_timeout()
+    }
+
+    pub fn set_send_timeout(&self, timeout: Duration) {
+        self.timeout.lock().unwrap().set_sender(timeout)
+    }
+
+    pub fn set_recv_timeout(&self, timeout: Duration) {
+        self.timeout.lock().unwrap().set_receiver(timeout)
+    }
+
     pub fn is_closed(&self) -> bool {
         self.is_closed.load(Ordering::Relaxed)
     }
@@ -124,6 +145,7 @@ impl<A: Addr + 'static, R: Runtime> Common<A, R> {
         &self.pollee
     }
 
+    #[allow(dead_code)]
     pub fn addr(&self) -> Option<A> {
         let inner = self.inner.lock().unwrap();
         inner.addr.clone()

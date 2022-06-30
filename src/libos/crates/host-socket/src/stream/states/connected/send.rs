@@ -56,7 +56,24 @@ impl<A: Addr + 'static, R: Runtime> ConnectedStream<A, R> {
 
             let events = self.common.pollee().poll(mask, None);
             if events.is_empty() {
-                poller.as_ref().unwrap().wait().await?;
+                let ret = poller
+                    .as_ref()
+                    .unwrap()
+                    .wait_timeout(self.common.send_timeout().as_mut())
+                    .await;
+                if let Err(e) = ret {
+                    warn!("send wait errno = {:?}", e.errno());
+                    match e.errno() {
+                        ETIMEDOUT => {
+                            // Just cancel send requests if timeout
+                            self.cancel_send_requests();
+                            return_errno!(EAGAIN, "timeout reached")
+                        }
+                        _ => {
+                            return_errno!(e.errno(), "wait error")
+                        }
+                    }
+                }
             }
         }
     }
@@ -151,6 +168,11 @@ impl<A: Addr + 'static, R: Runtime> ConnectedStream<A, R> {
                 // TODO: guard against Iago attack through errno
                 // TODO: should we ignore EINTR and try again?
                 let errno = Errno::from(-retval as u32);
+                // If send request is canceled, just ignore it to avoid spurious wake up on the other end.
+                if errno == ECANCELED {
+                    return;
+                }
+
                 inner.fatal = Some(errno);
                 stream.common.pollee().add_events(Events::ERR);
                 return;
@@ -184,6 +206,16 @@ impl<A: Addr + 'static, R: Runtime> ConnectedStream<A, R> {
         let host_fd = Fd(self.common.host_fd() as _);
         let handle = unsafe { io_uring.sendmsg(host_fd, msghdr_ptr, 0, complete_fn) };
         inner.io_handle.replace(handle);
+    }
+
+    fn cancel_send_requests(&self) {
+        let io_uring = self.common.io_uring();
+        let inner = self.sender.inner.lock().unwrap();
+        if let Some(io_handle) = &inner.io_handle {
+            unsafe { io_uring.cancel(io_handle) };
+        } else {
+            return;
+        }
     }
 }
 

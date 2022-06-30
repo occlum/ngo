@@ -49,7 +49,23 @@ impl<A: Addr + 'static, R: Runtime> ConnectingStream<A, R> {
             if !events.is_empty() {
                 break;
             }
-            poller.wait().await?;
+            let ret = poller
+                .wait_timeout(self.common.send_timeout().as_mut())
+                .await;
+            if let Err(e) = ret {
+                warn!("connect wait errno = {:?}", e.errno());
+                match e.errno() {
+                    ETIMEDOUT => {
+                        // Cancel connect request if timeout
+                        self.cancel_connect_request();
+                        // This error code is same as the connect timeout error code on Linux
+                        return_errno!(EINPROGRESS, "timeout reached")
+                    }
+                    _ => {
+                        return_errno!(e.errno(), "wait error")
+                    }
+                }
+            }
         }
 
         // Finish the async connect
@@ -72,6 +88,10 @@ impl<A: Addr + 'static, R: Runtime> ConnectingStream<A, R> {
                 // Store the errno
                 let mut req = arc_self.req.lock().unwrap();
                 let errno = Errno::from(-retval as u32);
+                // If connect request is canceled, just ignore it to avoid spurious wake up on the other end
+                if errno == ECANCELED {
+                    return;
+                }
                 req.errno = Some(errno);
                 drop(req);
 
@@ -93,6 +113,14 @@ impl<A: Addr + 'static, R: Runtime> ConnectingStream<A, R> {
             )
         };
         req.io_handle = Some(io_handle);
+    }
+
+    fn cancel_connect_request(&self) {
+        let io_uring = self.common.io_uring();
+        let req = self.req.lock().unwrap();
+        if let Some(io_handle) = &req.io_handle {
+            unsafe { io_uring.cancel(io_handle) };
+        }
     }
 
     #[allow(dead_code)]
