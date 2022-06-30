@@ -1,4 +1,5 @@
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
 use atomic::Atomic;
 use ringbuf::{Consumer as RbConsumer, Producer as RbProducer, RingBuffer};
@@ -6,6 +7,7 @@ use ringbuf::{Consumer as RbConsumer, Producer as RbProducer, RingBuffer};
 use crate::event::{Events, Observer, Pollee, Poller};
 use crate::file::{AccessMode, File, StatusFlags};
 use crate::prelude::*;
+use crate::socket::Timeout;
 
 /// A unidirectional communication channel, intended to implement IPC, e.g., pipe,
 /// unix domain sockets, etc.
@@ -30,6 +32,7 @@ struct Common<T> {
     producer: EndPoint<RbProducer<T>>,
     consumer: EndPoint<RbConsumer<T>>,
     event_lock: Mutex<()>,
+    timeout: Mutex<Timeout>,
 }
 
 struct EndPoint<T> {
@@ -136,11 +139,13 @@ impl<T> Common<T> {
         let consumer = EndPoint::new(rb_consumer, Events::empty(), flags);
 
         let event_lock = Mutex::new(());
+        let timeout = Mutex::new(Timeout::new());
 
         Ok(Self {
             producer,
             consumer,
             event_lock,
+            timeout,
         })
     }
 
@@ -150,6 +155,22 @@ impl<T> Common<T> {
 
     pub fn capacity(&self) -> usize {
         self.producer.ringbuf.lock().capacity()
+    }
+
+    pub fn sender_timeout(&self) -> Option<Duration> {
+        self.timeout.lock().sender_timeout()
+    }
+
+    pub fn receiver_timeout(&self) -> Option<Duration> {
+        self.timeout.lock().receiver_timeout()
+    }
+
+    pub fn set_sender_timeout(&self, timeout: Duration) {
+        self.timeout.lock().set_sender(timeout);
+    }
+
+    pub fn set_receiver_timeout(&self, timeout: Duration) {
+        self.timeout.lock().set_receiver(timeout);
     }
 }
 
@@ -197,6 +218,14 @@ impl<T> Producer<T> {
 
     fn peer_end(&self) -> &EndPoint<RbConsumer<T>> {
         &self.common.consumer
+    }
+
+    pub fn set_sender_timeout(&self, timeout: Duration) {
+        self.common.set_sender_timeout(timeout)
+    }
+
+    pub fn sender_timeout(&self) -> Option<Duration> {
+        self.common.sender_timeout()
     }
 
     pub fn peer_is_shutdown(&self) -> bool {
@@ -276,7 +305,22 @@ impl Producer<u8> {
             }
             let events = self.pollee().poll(mask, None);
             if events.is_empty() {
-                poller.as_ref().unwrap().wait().await?;
+                let ret = poller
+                    .as_ref()
+                    .unwrap()
+                    .wait_timeout(self.sender_timeout().as_mut())
+                    .await;
+                if let Err(e) = ret {
+                    warn!("write wait errno = {:?}", e.errno());
+                    match e.errno() {
+                        ETIMEDOUT => {
+                            return_errno!(EAGAIN, "timeout reached")
+                        }
+                        _ => {
+                            return_errno!(e.errno(), "wait error")
+                        }
+                    }
+                }
             }
         }
     }
@@ -430,6 +474,14 @@ impl<T> Consumer<T> {
         self.common.consumer.is_shutdown()
     }
 
+    pub fn receiver_timeout(&self) -> Option<Duration> {
+        self.common.receiver_timeout()
+    }
+
+    pub fn set_receiver_timeout(&self, timeout: Duration) {
+        self.common.set_receiver_timeout(timeout)
+    }
+
     pub fn status_flags(&self) -> StatusFlags {
         self.this_end().flags.load(Ordering::Relaxed)
     }
@@ -480,7 +532,22 @@ impl Consumer<u8> {
             }
             let events = self.pollee().poll(mask, None);
             if events.is_empty() {
-                poller.as_ref().unwrap().wait().await?;
+                let ret = poller
+                    .as_ref()
+                    .unwrap()
+                    .wait_timeout(self.receiver_timeout().as_mut())
+                    .await;
+                if let Err(e) = ret {
+                    warn!("read wait errno = {:?}", e.errno());
+                    match e.errno() {
+                        ETIMEDOUT => {
+                            return_errno!(EAGAIN, "timeout reached")
+                        }
+                        _ => {
+                            return_errno!(e.errno(), "wait error")
+                        }
+                    }
+                }
             }
         }
     }
