@@ -329,17 +329,14 @@ impl<A: Addr, R: Runtime> StreamSocket<A, R> {
     }
 
     pub fn shutdown(&self, shutdown: Shutdown) -> Result<()> {
-        let connected_stream = {
-            let state = self.state.read().unwrap();
-            match &*state {
-                State::Connected(connected_stream) => connected_stream.clone(),
-                _ => {
-                    return_errno!(ENOTCONN, "the socket is not connected");
-                }
+        let state = self.state.read().unwrap();
+        match &*state {
+            State::Connected(connected_stream) => connected_stream.shutdown(shutdown),
+            State::Listen(listener_stream) => listener_stream.shutdown(shutdown),
+            _ => {
+                return_errno!(ENOTCONN, "the socket is not connected");
             }
-        };
-
-        connected_stream.shutdown(shutdown)
+        }
     }
 
     fn cancel_requests(&self) {
