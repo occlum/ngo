@@ -49,7 +49,21 @@ impl<A: Addr + 'static, R: Runtime> ConnectingStream<A, R> {
             if !events.is_empty() {
                 break;
             }
-            poller.wait().await?;
+            let ret = poller
+                .wait_timeout(self.common.send_timeout().as_mut())
+                .await;
+            if let Err(e) = ret {
+                warn!("connect wait errno = {:?}", e.errno());
+                match e.errno() {
+                    ETIMEDOUT => {
+                        // This error code is same as the connect timeout error code on Linux
+                        return_errno!(EINPROGRESS, "timeout reached")
+                    }
+                    _ => {
+                        return_errno!(e.errno(), "wait error")
+                    }
+                }
+            }
         }
 
         // Finish the async connect

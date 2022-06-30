@@ -56,7 +56,22 @@ impl<A: Addr + 'static, R: Runtime> ConnectedStream<A, R> {
 
             let events = self.common.pollee().poll(mask, None);
             if events.is_empty() {
-                poller.as_ref().unwrap().wait().await?;
+                let ret = poller
+                    .as_ref()
+                    .unwrap()
+                    .wait_timeout(self.common.send_timeout().as_mut())
+                    .await;
+                if let Err(e) = ret {
+                    warn!("send wait errno = {:?}", e.errno());
+                    match e.errno() {
+                        ETIMEDOUT => {
+                            return_errno!(EAGAIN, "timeout reached")
+                        }
+                        _ => {
+                            return_errno!(e.errno(), "wait error")
+                        }
+                    }
+                }
             }
         }
     }

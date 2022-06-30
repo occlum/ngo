@@ -1,8 +1,10 @@
 use std::convert::TryFrom;
 use std::mem::MaybeUninit;
+use std::time::Duration;
 
 use async_io::ioctl::IoctlCmd;
 use async_io::socket::{RecvFlags, SendFlags, Shutdown, Type};
+use async_io::socket::{SetRecvTimeoutCmd, SetSendTimeoutCmd};
 use host_socket::sockopt::{
     GetAcceptConnCmd, GetDomainCmd, GetPeerNameCmd, GetSockOptRawCmd, GetTypeCmd, SetSockOptRawCmd,
     SockOptName,
@@ -572,6 +574,30 @@ fn new_setsockopt_cmd(level: i32, optname: i32, optval: &[u8]) -> Result<Box<dyn
         | SockOptName::SO_INCOMING_NAPI_ID
         | SockOptName::SO_COOKIE
         | SockOptName::SO_PEERGROUPS => return_errno!(ENOPROTOOPT, "it's a read-only option"),
+        SockOptName::SO_RCVTIMEO_OLD => {
+            let mut timeout: *const libc::timeval = std::ptr::null();
+            if optval.len() >= std::mem::size_of::<libc::timeval>() {
+                timeout = optval as *const _ as *const libc::timeval;
+            } else {
+                return_errno!(EINVAL, "invalid timeout option");
+            }
+            let timeout = unsafe {
+                Duration::new((*timeout).tv_sec as u64, (*timeout).tv_usec as u32 * 1000)
+            };
+            Box::new(SetRecvTimeoutCmd::new(timeout))
+        }
+        SockOptName::SO_SNDTIMEO_OLD => {
+            let mut timeout: *const libc::timeval = std::ptr::null();
+            if optval.len() >= std::mem::size_of::<libc::timeval>() {
+                timeout = optval as *const _ as *const libc::timeval;
+            } else {
+                return_errno!(EINVAL, "invalid timeout option");
+            }
+            let timeout = unsafe {
+                Duration::new((*timeout).tv_sec as u64, (*timeout).tv_usec as u32 * 1000)
+            };
+            Box::new(SetSendTimeoutCmd::new(timeout))
+        }
         _ => Box::new(SetSockOptRawCmd::new(level, optname, optval)),
     })
 }
