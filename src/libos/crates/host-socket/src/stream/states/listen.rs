@@ -143,6 +143,23 @@ impl<A: Addr + 'static, R: Runtime> ListenerStream<A, R> {
             }
         }
     }
+
+    pub fn shutdown(&self, how: Shutdown) -> Result<()> {
+        if how.should_shut_read() {
+            self.common.host_shutdown(Shutdown::Read)?;
+            self.common.pollee().add_events(Events::IN);
+        }
+        if how.should_shut_write() {
+            self.common.host_shutdown(Shutdown::Write)?;
+            self.common.pollee().add_events(Events::OUT);
+        }
+
+        if how == Shutdown::Both {
+            self.common.pollee().add_events(Events::HUP);
+        }
+
+        Ok(())
+    }
 }
 
 impl<A: Addr + 'static, R: Runtime> std::fmt::Debug for ListenerStream<A, R> {
