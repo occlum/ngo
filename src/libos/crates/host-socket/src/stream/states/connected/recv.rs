@@ -71,6 +71,10 @@ impl<A: Addr + 'static, R: Runtime> ConnectedStream<A, R> {
                     warn!("recv wait errno = {:?}", e.errno());
                     match e.errno() {
                         ETIMEDOUT => {
+                            // For recv with MSG_WAITALL, return total received bytes if timeout
+                            if flags.contains(RecvFlags::MSG_WAITALL) && total_received > 0 {
+                                return Ok(total_received);
+                            }
                             return_errno!(EAGAIN, "timeout reached")
                         }
                         _ => {
