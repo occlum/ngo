@@ -98,7 +98,8 @@ impl<A: Addr + 'static, R: Runtime> ConnectedStream<A, R> {
         if !flags.is_empty()
             && flags.intersects(!(RecvFlags::MSG_DONTWAIT | RecvFlags::MSG_WAITALL))
         {
-            todo!("Support other flags: {:?}", flags);
+            warn!("Unsupported flags: {:?}", flags);
+            return_errno!(EINVAL, "flags not supported");
         }
 
         let res = {
