@@ -67,12 +67,9 @@ impl TrustedAddr {
                 return_errno!(EPERM, "libos socket file cannot be created");
             }
 
-            info!("sock name = {:?}", sock_name);
             let socket_inode = dir_inode.create(&sock_name, FileType::Socket, 0o0777)?;
             let data = host_addr.get_path_name()?.as_bytes();
-            info!("data = {:?}", data);
             socket_inode.resize(data.len())?;
-            info!("here");
             socket_inode.write_at(0, data)?;
         }
         Ok(())
