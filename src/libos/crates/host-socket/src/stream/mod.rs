@@ -351,7 +351,7 @@ impl<A: Addr, R: Runtime> StreamSocket<A, R> {
         Ok(())
     }
 
-    pub fn shutdown(&self, shutdown: Shutdown) -> Result<()> {
+    pub async fn shutdown(&self, shutdown: Shutdown) -> Result<()> {
         let state = self.state.read().unwrap();
         match &*state {
             State::Listen(listener_stream) => {
@@ -359,6 +359,8 @@ impl<A: Addr, R: Runtime> StreamSocket<A, R> {
                 listener_stream.shutdown(shutdown)?;
                 if shutdown.should_shut_read() {
                     drop(state);
+                    // Cancel pending accept requests. This is necessary because the socket is reusable.
+                    self.cancel_requests().await;
                     self.set_init_state()
                 } else {
                     // shutdown the writer of the listener expect to have no effect
@@ -372,13 +374,26 @@ impl<A: Addr, R: Runtime> StreamSocket<A, R> {
         }
     }
 
-    fn cancel_requests(&self) {
-        let state = self.state.read().unwrap();
-        match &*state {
-            State::Listen(listener_stream) => listener_stream.cancel_requests(),
-            State::Connected(connected_stream) => connected_stream.cancel_requests(),
-            _ => {}
+    async fn cancel_requests(&self) {
+        let (listener_stream, connected_stream) = {
+            let state = self.state.read().unwrap();
+            match &*state {
+                State::Listen(listener_stream) => (Some(listener_stream.clone()), None),
+                State::Connected(connected_stream) => (None, Some(connected_stream.clone())),
+                _ => (None, None),
+            }
+        };
+
+        if let Some(stream) = listener_stream {
+            stream.cancel_accept_requests().await;
+        } else if let Some(stream) = connected_stream {
+            stream.cancel_recv_requests().await;
         }
+    }
+
+    pub async fn close(&self) -> Result<()> {
+        self.cancel_requests().await;
+        Ok(())
     }
 
     fn send_timeout(&self) -> Option<Duration> {
@@ -419,8 +434,6 @@ impl<A: Addr + 'static, R: Runtime> Drop for StreamSocket<A, R> {
         let state = self.state.read().unwrap();
         state.common().set_closed();
         drop(state);
-
-        self.cancel_requests();
     }
 }
 

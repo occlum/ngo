@@ -338,7 +338,7 @@ impl Stream {
         }
     }
 
-    pub fn shutdown(&self, how: Shutdown) -> Result<()> {
+    pub async fn shutdown(&self, how: Shutdown) -> Result<()> {
         if let Status::Connected(ref end) = &*self.inner() {
             end.shutdown(how)
         } else {
