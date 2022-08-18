@@ -10,6 +10,8 @@
 #include <spawn.h>
 #include <string.h>
 #include <spawn.h>
+#include <sys/epoll.h>
+#include <pthread.h>
 
 #include "test.h"
 
@@ -422,6 +424,98 @@ int test_send_recv_timeout() {
     return 0;
 }
 
+void *client_routine(void *arg) {
+    // Sleep a while before connect
+    sleep(3);
+    printf("sleep is done\n");
+
+    char *sock_path = "/tmp/test.sock";
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(struct sockaddr_un)); // Clear structure
+    addr.sun_family = AF_UNIX;
+    strcpy(addr.sun_path, sock_path);
+    socklen_t addr_len = strlen(addr.sun_path) + sizeof(addr.sun_family) + 1;
+
+    int client_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (client_fd == -1) {
+        printf("failed to create a unix socket\n");
+        return NULL;
+    }
+
+    if (connect(client_fd, (struct sockaddr *)&addr, addr_len) == -1) {
+        close(client_fd);
+        printf("failed to connect\n");
+        return NULL;
+    }
+
+    printf("connect success\n");
+    return NULL;
+}
+
+int test_epoll_wait() {
+    char *sock_path = "/tmp/test.sock";
+    int ret;
+    struct epoll_event event;
+    uint32_t interest_events = EPOLLIN | EPOLLOUT;
+    struct epoll_event polled_events;
+    pthread_t client_tid;
+    struct sockaddr_un addr;
+
+    int listen_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (listen_fd == -1) {
+        THROW_ERROR("failed to create a unix socket");
+    }
+
+    memset(&addr, 0, sizeof(struct sockaddr_un)); // Clear structure
+    addr.sun_family = AF_UNIX;
+    strcpy(addr.sun_path, sock_path);
+    socklen_t addr_len = strlen(addr.sun_path) + sizeof(addr.sun_family) + 1;
+    unlink(addr.sun_path);
+    if (bind(listen_fd, (struct sockaddr *)&addr, addr_len) == -1) {
+        close(listen_fd);
+        THROW_ERROR("failed to bind");
+    }
+
+    if (listen(listen_fd, 5) != 0) {
+        THROW_ERROR("server_routine, error in listen");
+    }
+
+    int ep_fd = epoll_create1(0);
+    if (ep_fd < 0) {
+        THROW_ERROR("failed to create an epoll");
+    }
+
+    event.events = interest_events;
+    event.data.u32 = listen_fd;
+    ret = epoll_ctl(ep_fd, EPOLL_CTL_ADD, listen_fd, &event);
+    if (ret < 0) {
+        THROW_ERROR("failed to do epoll ctl");
+    }
+
+    if (pthread_create(&client_tid, NULL, client_routine, NULL)) {
+        THROW_ERROR("Failure creating client thread");
+    }
+
+    // wait infinitely
+    ret = epoll_wait(ep_fd, &polled_events, 1, -1);
+    if (ret != 1) {
+        THROW_ERROR("failed to do epoll wait");
+    }
+
+    if (polled_events.data.u32 != listen_fd) {
+        THROW_ERROR("epoll wait returned wrong fd");
+    }
+
+    int newsock = accept(listen_fd, (struct sockaddr *)&addr, &addr_len);
+    if (newsock == -1) {
+        THROW_ERROR("server_routine, error in accept");
+    }
+
+    printf("accept done, new socket = %d\n", newsock);
+    pthread_join(client_tid, NULL);
+    return 0;
+}
+
 static test_case_t test_cases[] = {
     TEST_CASE(test_unix_socket_inter_process),
     TEST_CASE(test_socketpair_inter_process),
@@ -431,6 +525,7 @@ static test_case_t test_cases[] = {
     TEST_CASE(test_ioctl_fionread),
     TEST_CASE(test_unix_socket_rename),
     TEST_CASE(test_send_recv_timeout),
+    TEST_CASE(test_epoll_wait),
 };
 
 int main(int argc, const char *argv[]) {
