@@ -38,7 +38,7 @@ impl<A: Addr, R: Runtime> StreamSocket<A, R> {
     fn set_init_state(&self) -> Result<()> {
         let mut state = self.state.write().unwrap();
         match &*state {
-            State::Init(init_stream) => {
+            State::Init(_) => {
                 warn!("already in init state");
             }
             State::Listen(listener_stream) => {
@@ -65,6 +65,21 @@ impl<A: Addr, R: Runtime> StreamSocket<A, R> {
     fn new_connected(connected_stream: Arc<ConnectedStream<A, R>>) -> Self {
         let state = RwLock::new(State::Connected(connected_stream));
         Self { state }
+    }
+
+    fn try_switch_to_connected_state(
+        connecting_stream: &Arc<ConnectingStream<A, R>>,
+    ) -> Option<Arc<ConnectedStream<A, R>>> {
+        // Connecting state only exists for non-blocking socket
+        assert!(connecting_stream.common().nonblocking());
+
+        if connecting_stream.check_connection() {
+            let common = connecting_stream.common().clone();
+            common.set_peer_addr(connecting_stream.peer_addr());
+            Some(ConnectedStream::new(common))
+        } else {
+            None
+        }
     }
 
     pub fn domain(&self) -> Domain {
@@ -134,8 +149,18 @@ impl<A: Addr, R: Runtime> StreamSocket<A, R> {
                     *state = State::Connect(connecting_stream.clone());
                     (init_stream, connecting_stream)
                 }
-                State::Connect(_) => {
-                    return_errno!(EALREADY, "the socket is already connecting");
+                State::Connect(connecting_stream) => {
+                    if let Some(connected_stream) =
+                        Self::try_switch_to_connected_state(connecting_stream)
+                    {
+                        *state = State::Connected(connected_stream);
+                        return_errno!(EISCONN, "the socket is already connected");
+                    } else {
+                        // Not connected, keep the connecting state and try connect
+                        let init_stream =
+                            InitStream::new_with_common(connecting_stream.common().clone())?;
+                        (init_stream, connecting_stream.clone())
+                    }
                 }
                 State::Connected(_) => {
                     return_errno!(EISCONN, "the socket is already connected");
@@ -148,8 +173,9 @@ impl<A: Addr, R: Runtime> StreamSocket<A, R> {
 
         let res = connecting_stream.connect().await;
 
-        // If success, then the state transits to connected; otherwise,
-        // the state is restored to the init state.
+        // If success, then the state is switched to connected; otherwise, for blocking socket
+        // the state is restored to the init state, and for non-blocking socket, the state
+        // keeps in connecting state.
         match &res {
             Ok(()) => {
                 let connected_stream = {
@@ -162,8 +188,10 @@ impl<A: Addr, R: Runtime> StreamSocket<A, R> {
                 *state = State::Connected(connected_stream);
             }
             Err(_) => {
-                let mut state = self.state.write().unwrap();
-                *state = State::Init(init_stream);
+                if !connecting_stream.common().nonblocking() {
+                    let mut state = self.state.write().unwrap();
+                    *state = State::Init(init_stream);
+                }
             }
         }
         res
@@ -206,9 +234,19 @@ impl<A: Addr, R: Runtime> StreamSocket<A, R> {
         flags: RecvFlags,
     ) -> Result<(usize, Option<A>)> {
         let connected_stream = {
-            let state = self.state.read().unwrap();
+            let mut state = self.state.write().unwrap();
             match &*state {
                 State::Connected(connected_stream) => connected_stream.clone(),
+                State::Connect(connecting_stream) => {
+                    if let Some(connected_stream) =
+                        Self::try_switch_to_connected_state(connecting_stream)
+                    {
+                        *state = State::Connected(connected_stream.clone());
+                        connected_stream
+                    } else {
+                        return_errno!(ENOTCONN, "the socket is not connected");
+                    }
+                }
                 _ => {
                     return_errno!(ENOTCONN, "the socket is not connected");
                 }
@@ -229,9 +267,19 @@ impl<A: Addr, R: Runtime> StreamSocket<A, R> {
 
     pub async fn sendmsg(&self, bufs: &[&[u8]], flags: SendFlags) -> Result<usize> {
         let connected_stream = {
-            let state = self.state.read().unwrap();
+            let mut state = self.state.write().unwrap();
             match &*state {
                 State::Connected(connected_stream) => connected_stream.clone(),
+                State::Connect(connecting_stream) => {
+                    if let Some(connected_stream) =
+                        Self::try_switch_to_connected_state(connecting_stream)
+                    {
+                        *state = State::Connected(connected_stream.clone());
+                        connected_stream
+                    } else {
+                        return_errno!(ENOTCONN, "the socket is not connected");
+                    }
+                }
                 _ => {
                     return_errno!(EPIPE, "the socket is not connected");
                 }
@@ -352,7 +400,7 @@ impl<A: Addr, R: Runtime> StreamSocket<A, R> {
     }
 
     pub async fn shutdown(&self, shutdown: Shutdown) -> Result<()> {
-        let state = self.state.read().unwrap();
+        let mut state = self.state.write().unwrap();
         match &*state {
             State::Listen(listener_stream) => {
                 // listening socket can be shutdown and then re-use by calling listen again.
@@ -368,6 +416,17 @@ impl<A: Addr, R: Runtime> StreamSocket<A, R> {
                 }
             }
             State::Connected(connected_stream) => connected_stream.shutdown(shutdown),
+            State::Connect(connecting_stream) => {
+                if let Some(connected_stream) =
+                    Self::try_switch_to_connected_state(connecting_stream)
+                {
+                    connected_stream.shutdown(shutdown)?;
+                    *state = State::Connected(connected_stream);
+                    Ok(())
+                } else {
+                    return_errno!(ENOTCONN, "the socket is not connected");
+                }
+            }
             _ => {
                 return_errno!(ENOTCONN, "the socket is not connected");
             }

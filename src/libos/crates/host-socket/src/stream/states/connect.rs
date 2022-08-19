@@ -12,6 +12,7 @@ pub struct ConnectingStream<A: Addr + 'static, R: Runtime> {
     common: Arc<Common<A, R>>,
     peer_addr: A,
     req: Mutex<ConnectReq<A>>,
+    connected: Mutex<Option<bool>>, // Use for nonblocking socket
 }
 
 struct ConnectReq<A: Addr> {
@@ -29,6 +30,7 @@ impl<A: Addr + 'static, R: Runtime> ConnectingStream<A, R> {
             common,
             peer_addr: peer_addr.clone(),
             req,
+            connected: Mutex::new(None),
         };
         Ok(Arc::new(new_self))
     }
@@ -39,6 +41,10 @@ impl<A: Addr + 'static, R: Runtime> ConnectingStream<A, R> {
         pollee.reset_events();
 
         self.initiate_async_connect();
+
+        if self.common.nonblocking() {
+            return_errno!(EINPROGRESS, "non-blocking connect request in progress");
+        }
 
         // Wait for the async connect to complete
         let mask = Events::OUT;
@@ -83,6 +89,11 @@ impl<A: Addr + 'static, R: Runtime> ConnectingStream<A, R> {
             assert!(retval <= 0);
 
             if retval == 0 {
+                if arc_self.common.nonblocking() {
+                    // Nonblocking connect succeeded
+                    let mut connected = arc_self.connected.lock().unwrap();
+                    *connected = Some(true);
+                }
                 arc_self.common.pollee().add_events(Events::OUT);
             } else {
                 // Store the errno
@@ -95,6 +106,11 @@ impl<A: Addr + 'static, R: Runtime> ConnectingStream<A, R> {
                 req.errno = Some(errno);
                 drop(req);
 
+                if arc_self.common.nonblocking() {
+                    // Nonblocking connect failed
+                    let mut connected = arc_self.connected.lock().unwrap();
+                    *connected = Some(false);
+                }
                 arc_self.common.pollee().add_events(Events::ERR);
             }
         };
@@ -131,6 +147,17 @@ impl<A: Addr + 'static, R: Runtime> ConnectingStream<A, R> {
     pub fn common(&self) -> &Arc<Common<A, R>> {
         &self.common
     }
+
+    // For nonblocking socket
+    pub fn check_connection(&self) -> bool {
+        debug_assert!(self.common.nonblocking());
+
+        // connected must be set
+        let connected = self.connected.lock().unwrap();
+        debug_assert!(connected.is_some());
+
+        connected.unwrap()
+    }
 }
 
 impl<A: Addr> ConnectReq<A> {
@@ -152,6 +179,7 @@ impl<A: Addr, R: Runtime> std::fmt::Debug for ConnectingStream<A, R> {
             .field("common", &self.common)
             .field("peer_addr", &self.peer_addr)
             .field("req", &*self.req.lock().unwrap())
+            .field("connected", &self.connected)
             .finish()
     }
 }
