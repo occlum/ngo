@@ -99,6 +99,7 @@ impl<A: Addr + 'static, R: Runtime> ListenerStream<A, R> {
     pub fn try_accept(self: &Arc<Self>, nonblocking: bool) -> Result<Arc<ConnectedStream<A, R>>> {
         let mut inner = self.inner.lock().unwrap();
 
+        // info!("try accept backlog completed = {:?}", inner.backlog.completed);
         if let Some(errno) = inner.fatal {
             return_errno!(errno, "accept failed");
         }
@@ -172,6 +173,7 @@ impl<A: Addr + 'static, R: Runtime> ListenerStream<A, R> {
                     continue;
                 }
             } else {
+                info!("cancel requests done.");
                 return;
             }
         }
@@ -324,7 +326,7 @@ impl<A: Addr> Backlog<A> {
             let stream = stream.clone();
             move |retval: i32| {
                 let mut inner = stream.inner.lock().unwrap();
-
+                info!("accept request done");
                 if retval < 0 {
                     // Since most errors that may result from the accept syscall are _not fatal_,
                     // we simply ignore the errno code and try again.
@@ -353,7 +355,7 @@ impl<A: Addr> Backlog<A> {
                 let host_fd = retval as HostFd;
                 inner.backlog.entries[entry_idx] = Entry::Completed { host_fd };
                 inner.backlog.completed.push_back(entry_idx);
-
+                info!("accept complete backlog = {:?}", inner.backlog.completed);
                 stream.common.pollee().add_events(Events::IN);
 
                 stream.initiate_async_accepts(inner);
@@ -362,6 +364,7 @@ impl<A: Addr> Backlog<A> {
         let io_uring = stream.common.io_uring();
         let fd = stream.common.host_fd() as i32;
         let flags = 0;
+        info!("accept request submit");
         let io_handle =
             unsafe { io_uring.accept(Fd(fd), c_addr_ptr, c_addr_len_ptr, flags, callback) };
         self.entries[entry_idx] = Entry::Pending { io_handle };

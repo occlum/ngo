@@ -712,8 +712,8 @@ jobs:
     - name: Make install in debug mode
       run: docker exec $gvisor_test bash -c "source /opt/intel/sgxsdk/environment; cd /root/occlum; make install"
 
-    - name: Clone gvisor code
-      run: docker exec $gvisor_test bash -c "git clone https://github.com/occlum/gvisor.git"
+    - name: clone code
+      run: docker exec $gvisor_test bash -c "git clone https://github.com/jessehui/gvisor.git -b single_test"
 
     - name: Run gvisor syscall test
       run: docker exec $gvisor_test bash -c "cd /root/gvisor/occlum && SGX_MODE=SIM ./run_occlum_passed_tests.sh ngo"

@@ -62,11 +62,13 @@ impl<A: Addr + 'static, R: Runtime> ConnectedStream<A, R> {
             }
             let events = self.common.pollee().poll(mask, None);
             if events.is_empty() {
+                info!("recv timeout = {:?}", self.common.recv_timeout());
                 let ret = poller
                     .as_ref()
                     .unwrap()
                     .wait_timeout(self.common.recv_timeout().as_mut())
                     .await;
+                info!("ret = {:?}", ret);
                 if let Err(e) = ret {
                     warn!("recv wait errno = {:?}", e.errno());
                     match e.errno() {
@@ -165,6 +167,7 @@ impl<A: Addr + 'static, R: Runtime> ConnectedStream<A, R> {
             || inner.end_of_file
             || self.common.is_closed()
         {
+            info!("do_recv early return");
             return;
         }
 
@@ -172,7 +175,7 @@ impl<A: Addr + 'static, R: Runtime> ConnectedStream<A, R> {
         let stream = self.clone();
         let complete_fn = move |retval: i32| {
             let mut inner = stream.receiver.inner.lock().unwrap();
-
+            trace!("recv request complete");
             // Release the handle to the async recv
             inner.io_handle.take();
 
@@ -211,6 +214,7 @@ impl<A: Addr + 'static, R: Runtime> ConnectedStream<A, R> {
         // Submit the async recv to io_uring
         let io_uring = self.common.io_uring();
         let host_fd = Fd(self.common.host_fd() as _);
+        trace!("submit recv request");
         let handle = unsafe { io_uring.recvmsg(host_fd, msghdr_ptr, 0, complete_fn) };
         inner.io_handle.replace(handle);
     }
