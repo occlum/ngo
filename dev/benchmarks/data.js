@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1660546035140,
+  "lastUpdate": 1661206181509,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -36,6 +36,54 @@ window.BENCHMARK_DATA = {
             "value": 2664,
             "unit": "Mbits/sec",
             "extra": "receiver"
+          }
+        ]
+      }
+    ],
+    "Sysbench Benchmark": [
+      {
+        "commit": {
+          "author": {
+            "name": "Zheng, Qi",
+            "username": "qzheng527",
+            "email": "huaiqing.zq@antgroup.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "4508633964dd77bdce117702300c6059f3d40a27",
+          "message": "[benchmark ci] Schedule to run everyday at 10PM UTC",
+          "timestamp": "2022-08-16T01:56:07Z",
+          "url": "https://github.com/occlum/ngo/commit/4508633964dd77bdce117702300c6059f3d40a27"
+        },
+        "date": 1661206180551,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Threads Minimum latency",
+            "value": 0.05,
+            "unit": "ms",
+            "extra": "min"
+          },
+          {
+            "name": "Threads Average Latency",
+            "value": 54.4,
+            "unit": "ms",
+            "extra": "avg"
+          },
+          {
+            "name": "Threads Maximum Latency",
+            "value": 928.48,
+            "unit": "ms",
+            "extra": "max"
+          },
+          {
+            "name": "Thread 95th Percentile Latency",
+            "value": 292.6,
+            "unit": "ms",
+            "extra": "per95"
           }
         ]
       }
