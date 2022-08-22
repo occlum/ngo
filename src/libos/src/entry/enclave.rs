@@ -109,8 +109,6 @@ pub extern "C" fn occlum_ecall_init(
             }
         });
 
-        HAS_INIT.store(true, Ordering::SeqCst);
-
         // Init boot up time stamp here.
         crate::time::up_time::init();
 
@@ -122,48 +120,41 @@ pub extern "C" fn occlum_ecall_init(
 
         // Start load balancer
         async_rt::executor::start_load_balancer();
+
+        // Parse host file and store in memory
+        let resolv_conf_ptr = unsafe { (*file_buffer).resolv_conf_buf };
+        match parse_host_file(HostFile::RESOLV_CONF, resolv_conf_ptr) {
+            Err(e) => {
+                error!("failed to parse host /etc/resolv.conf: {}", e.backtrace());
+            }
+            Ok(resolv_conf_str) => {
+                *RESOLV_CONF_STR.write().unwrap() = Some(resolv_conf_str);
+            }
+        }
+
+        let hostname_ptr = unsafe { (*file_buffer).hostname_buf };
+        match parse_host_file(HostFile::HOSTNAME, hostname_ptr) {
+            Err(e) => {
+                error!("failed to parse host /etc/hostname: {}", e.backtrace());
+            }
+            Ok(hostname_str) => {
+                misc::init_nodename(&hostname_str);
+                *HOSTNAME_STR.write().unwrap() = Some(hostname_str);
+            }
+        }
+
+        let hosts_ptr = unsafe { (*file_buffer).hosts_buf };
+        match parse_host_file(HostFile::HOSTS, hosts_ptr) {
+            Err(e) => {
+                error!("failed to parse host /etc/hosts: {}", e.backtrace());
+            }
+            Ok(hosts_str) => {
+                *HOSTS_STR.write().unwrap() = Some(hosts_str);
+            }
+        }
+
+        HAS_INIT.store(true, Ordering::SeqCst);
     });
-
-    // Parse host file
-    let resolv_conf_ptr = unsafe { (*file_buffer).resolv_conf_buf };
-    match parse_host_file(HostFile::RESOLV_CONF, resolv_conf_ptr) {
-        Err(e) => {
-            error!("failed to parse /etc/resolv.conf: {}", e.backtrace());
-        }
-        Ok(resolv_conf_str) => {
-            *RESOLV_CONF_STR.write().unwrap() = Some(resolv_conf_str);
-            if let Err(e) = write_host_file(HostFile::RESOLV_CONF) {
-                error!("failed to write /etc/resolv.conf: {}", e.backtrace());
-            }
-        }
-    }
-
-    let hostname_ptr = unsafe { (*file_buffer).hostname_buf };
-    match parse_host_file(HostFile::HOSTNAME, hostname_ptr) {
-        Err(e) => {
-            error!("failed to parse /etc/hostname: {}", e.backtrace());
-        }
-        Ok(hostname_str) => {
-            misc::init_nodename(&hostname_str);
-            *HOSTNAME_STR.write().unwrap() = Some(hostname_str);
-            if let Err(e) = write_host_file(HostFile::HOSTNAME) {
-                error!("failed to write /etc/hostname: {}", e.backtrace());
-            }
-        }
-    }
-
-    let hosts_ptr = unsafe { (*file_buffer).hosts_buf };
-    match parse_host_file(HostFile::HOSTS, hosts_ptr) {
-        Err(e) => {
-            error!("failed to parse /etc/hosts: {}", e.backtrace());
-        }
-        Ok(hosts_str) => {
-            *HOSTS_STR.write().unwrap() = Some(hosts_str);
-            if let Err(e) = write_host_file(HostFile::HOSTS) {
-                error!("failed to write /etc/hosts: {}", e.backtrace());
-            }
-        }
-    }
 
     0
 }
@@ -256,16 +247,36 @@ pub extern "C" fn occlum_ecall_shutdown_vcpus() -> i32 {
 
     // Flush the async sfs
     if crate::fs::async_sfs_initilized() {
-        async_rt::task::block_on(unsafe {
-            super::thread::mark_send::mark_send(async {
-                //use async_vfs::AsyncFileSystem;
-                crate::fs::async_sfs().await.sync().await.unwrap();
-            })
+        async_rt::task::block_on(async {
+            crate::fs::async_sfs().await.sync().await.unwrap();
         });
     }
 
     // TODO: stop all the kernel threads/tasks
     async_rt::executor::shutdown();
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn occlum_ecall_init_host_file() -> i32 {
+    if HAS_INIT.load(Ordering::SeqCst) == false {
+        return ecall_errno!(EAGAIN);
+    }
+
+    async_rt::task::block_on(unsafe {
+        super::thread::mark_send::mark_send(async {
+            if let Err(e) = write_host_file(HostFile::RESOLV_CONF).await {
+                error!("failed to init /etc/resolv.conf: {}", e.backtrace());
+            }
+            if let Err(e) = write_host_file(HostFile::HOSTNAME).await {
+                error!("failed to init /etc/hostname: {}", e.backtrace());
+            }
+            if let Err(e) = write_host_file(HostFile::HOSTS).await {
+                error!("failed to init /etc/hosts: {}", e.backtrace());
+            }
+        })
+    });
+
     0
 }
 

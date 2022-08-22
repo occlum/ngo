@@ -13,7 +13,7 @@ lazy_static! {
     static ref MOUNT_ONCE: Once = Once::new();
 }
 
-pub fn do_mount_rootfs(
+pub async fn do_mount_rootfs(
     user_config: &config::Config,
     user_key: &Option<sgx_key_128bit_t>,
 ) -> Result<()> {
@@ -32,15 +32,15 @@ pub fn do_mount_rootfs(
     });
 
     // Write resolv.conf file into mounted file system
-    write_host_file(HostFile::RESOLV_CONF)?;
+    write_host_file(HostFile::RESOLV_CONF).await?;
     *RESOLV_CONF_STR.write().unwrap() = None;
 
     // Write hostname file into mounted file system
-    write_host_file(HostFile::HOSTNAME)?;
+    write_host_file(HostFile::HOSTNAME).await?;
     *HOSTNAME_STR.write().unwrap() = None;
 
     // Write hosts file into mounted file system
-    write_host_file(HostFile::HOSTS)?;
+    write_host_file(HostFile::HOSTS).await?;
     *HOSTS_STR.write().unwrap() = None;
 
     Ok(())
