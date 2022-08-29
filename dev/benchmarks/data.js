@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1661724959982,
+  "lastUpdate": 1661810993635,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -272,6 +272,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "Receiver Average Rate",
             "value": 3494,
+            "unit": "Mbits/sec",
+            "extra": "receiver"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Hui, Chunyang",
+            "username": "jessehui",
+            "email": "sanqian.hcy@antfin.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "bb13e6e0b487e5b052bf6b402ec4a0b09ade780d",
+          "message": "Add support for /proc/self(pid)/",
+          "timestamp": "2022-08-24T09:11:01Z",
+          "url": "https://github.com/occlum/ngo/commit/bb13e6e0b487e5b052bf6b402ec4a0b09ade780d"
+        },
+        "date": 1661810992657,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Sender Average Rate",
+            "value": 3359,
+            "unit": "Mbits/sec",
+            "extra": "sender"
+          },
+          {
+            "name": "Receiver Average Rate",
+            "value": 3359,
             "unit": "Mbits/sec",
             "extra": "receiver"
           }
