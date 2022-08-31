@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1661897768301,
+  "lastUpdate": 1661983757086,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -756,6 +756,52 @@ window.BENCHMARK_DATA = {
           {
             "name": "Thread 95th Percentile Latency",
             "value": 287.38,
+            "unit": "ms",
+            "extra": "per95"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Hui, Chunyang",
+            "username": "jessehui",
+            "email": "sanqian.hcy@antfin.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "bb13e6e0b487e5b052bf6b402ec4a0b09ade780d",
+          "message": "Add support for /proc/self(pid)/",
+          "timestamp": "2022-08-24T09:11:01Z",
+          "url": "https://github.com/occlum/ngo/commit/bb13e6e0b487e5b052bf6b402ec4a0b09ade780d"
+        },
+        "date": 1661983756124,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Threads Minimum latency",
+            "value": 0.05,
+            "unit": "ms",
+            "extra": "min"
+          },
+          {
+            "name": "Threads Average Latency",
+            "value": 55.03,
+            "unit": "ms",
+            "extra": "avg"
+          },
+          {
+            "name": "Threads Maximum Latency",
+            "value": 964.16,
+            "unit": "ms",
+            "extra": "max"
+          },
+          {
+            "name": "Thread 95th Percentile Latency",
+            "value": 297.92,
             "unit": "ms",
             "extra": "per95"
           }
