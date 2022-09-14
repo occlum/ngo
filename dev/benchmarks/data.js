@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1663107330016,
+  "lastUpdate": 1663193366339,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -816,6 +816,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "Receiver Average Rate",
             "value": 3532,
+            "unit": "Mbits/sec",
+            "extra": "receiver"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Shaowei Song",
+            "username": "lucassong-mh",
+            "email": "1498430017@qq.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "43af5a2cae526e148f597f4a3ba1a81da02a2541",
+          "message": "[block-device] Fix a minor bug in BlockDeviceAsFile",
+          "timestamp": "2022-09-02T07:40:36Z",
+          "url": "https://github.com/occlum/ngo/commit/43af5a2cae526e148f597f4a3ba1a81da02a2541"
+        },
+        "date": 1663193365315,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Sender Average Rate",
+            "value": 3420,
+            "unit": "Mbits/sec",
+            "extra": "sender"
+          },
+          {
+            "name": "Receiver Average Rate",
+            "value": 3420,
             "unit": "Mbits/sec",
             "extra": "receiver"
           }
