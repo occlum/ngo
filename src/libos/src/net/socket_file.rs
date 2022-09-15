@@ -152,9 +152,9 @@ impl SocketFile {
         is_stream: bool,
         nonblocking: bool,
     ) -> Result<Self> {
-        if protocol != SocketProtocol::IPPROTO_IP && protocol != SocketProtocol::IPPROTO_TCP {
-            return_errno!(EINVAL, "unsupported protocol");
-        }
+        // if protocol != SocketProtocol::IPPROTO_IP && protocol != SocketProtocol::IPPROTO_TCP && protocol != SocketProtocol::IPPROTO_UDP {
+        //     return_errno!(EINVAL, "unsupported protocol");
+        // }
 
         if is_stream {
             let any_socket = match domain {
@@ -171,6 +171,9 @@ impl SocketFile {
                     AnySocket::UnixStream(unix_stream)
                 }
             };
+            if protocol != SocketProtocol::IPPROTO_IP && protocol != SocketProtocol::IPPROTO_TCP {
+                return_errno!(EINVAL, "unsupported protocol");
+            }
             let new_self = Self { socket: any_socket };
             Ok(new_self)
         } else {
@@ -188,6 +191,9 @@ impl SocketFile {
                     AnySocket::UnixDatagram(unix_datagram)
                 }
             };
+            if protocol != SocketProtocol::IPPROTO_IP && protocol != SocketProtocol::IPPROTO_UDP {
+                return_errno!(EINVAL, "unsupported protocol");
+            }
             let new_self = Self { socket: any_socket };
             Ok(new_self)
         }
@@ -242,12 +248,26 @@ impl SocketFile {
                 unix_stream.connect(unix_addr).await
             }
             AnySocket::Ipv4Datagram(ipv4_datagram) => {
-                let ip_addr = if addr.is_unspec() {
-                    None
-                } else {
-                    Some(addr.to_ipv4()?)
-                };
+                let mut ip_addr = None;
+                if !addr.is_unspec() {
+                    let ipv4_addr = addr.to_ipv4()?;
+                    if ipv4_addr.is_inaddr_any() {
+                        return Ok(());
+                    }
+                    ip_addr = Some(ipv4_addr);
+                }
                 ipv4_datagram.connect(ip_addr).await
+            }
+            AnySocket::Ipv6Datagram(ipv6_datagram) => {
+                let mut ip_addr = None;
+                if !addr.is_unspec() {
+                    let ipv6_addr = addr.to_ipv6()?;
+                    if ipv6_addr.is_in6addr_any_init() {
+                        return Ok(());
+                    }
+                    ip_addr = Some(ipv6_addr);
+                }
+                ipv6_datagram.connect(ip_addr).await
             }
             AnySocket::UnixDatagram(unix_datagram) => {
                 let unix_addr = if addr.is_unspec() {
@@ -303,7 +323,7 @@ impl SocketFile {
             AnySocket::Ipv6Stream(ip_stream) => ip_stream.listen(backlog),
             AnySocket::UnixStream(unix_stream) => unix_stream.listen(backlog),
             _ => {
-                return_errno!(EINVAL, "listen is not supported");
+                return_errno!(EOPNOTSUPP, "The socket is not of a listen supported type");
             }
         }
     }
@@ -323,7 +343,7 @@ impl SocketFile {
                 AnySocket::UnixStream(accepted_unix_stream)
             }
             _ => {
-                return_errno!(EINVAL, "accept is not supported");
+                return_errno!(EOPNOTSUPP, "The socket is not of a accept supported type");
             }
         };
         let accepted_socket_file = SocketFile {
