@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1663538957428,
+  "lastUpdate": 1663539343004,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -952,6 +952,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "Receiver Average Rate",
             "value": 3360,
+            "unit": "Mbits/sec",
+            "extra": "receiver"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Hui, Chunyang",
+            "username": "jessehui",
+            "email": "sanqian.hcy@antfin.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "31c5b20d4bd84e2ff8a6f3a93d9a8c4da29070aa",
+          "message": "[uds] Add test case for sendmsg/recvmsg",
+          "timestamp": "2022-09-14T11:00:40Z",
+          "url": "https://github.com/occlum/ngo/commit/31c5b20d4bd84e2ff8a6f3a93d9a8c4da29070aa"
+        },
+        "date": 1663539342058,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Sender Average Rate",
+            "value": 3366,
+            "unit": "Mbits/sec",
+            "extra": "sender"
+          },
+          {
+            "name": "Receiver Average Rate",
+            "value": 3366,
             "unit": "Mbits/sec",
             "extra": "receiver"
           }
