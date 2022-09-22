@@ -22,7 +22,7 @@ impl<A: Addr, R: Runtime> Receiver<A, R> {
         self: &Arc<Self>,
         bufs: &mut [&mut [u8]],
         flags: RecvFlags,
-    ) -> Result<(usize, A)> {
+    ) -> Result<(usize, Option<A>)> {
         let mask = Events::IN;
         // Initialize the poller only when needed
         let mut poller = None;
@@ -33,8 +33,13 @@ impl<A: Addr, R: Runtime> Receiver<A, R> {
                 return res;
             }
 
+            // Need more handles for flags not MSG_DONTWAIT
             if self.common.nonblocking() || flags.contains(RecvFlags::MSG_DONTWAIT) {
                 return_errno!(EAGAIN, "no data are present to be received");
+            }
+
+            if self.is_shutdown() {
+                return Ok((0, None));
             }
 
             // Wait for interesting events by polling
@@ -54,11 +59,12 @@ impl<A: Addr, R: Runtime> Receiver<A, R> {
         self: &Arc<Self>,
         bufs: &mut [&mut [u8]],
         flags: RecvFlags,
-    ) -> Result<(usize, A)> {
+    ) -> Result<(usize, Option<A>)> {
         let mut inner = self.inner.lock().unwrap();
 
         if !flags.is_empty() && flags != RecvFlags::MSG_DONTWAIT {
-            todo!("Support other flags");
+            // todo!("Support other flags");
+            return_errno!(EINVAL, "the socket flags is not supported");
         }
 
         // Mark the socket as non-readable since Datagram uses single packet
@@ -67,7 +73,7 @@ impl<A: Addr, R: Runtime> Receiver<A, R> {
         // Copy data from the recv buffer to the bufs
         let recv_bytes = inner.try_copy_buf(bufs);
         if let Some(recv_bytes) = recv_bytes {
-            let recv_addr = inner.get_addr().unwrap();
+            let recv_addr = inner.get_packet_addr();
             self.do_recv(&mut inner);
             return Ok((recv_bytes, recv_addr));
         }
@@ -75,6 +81,10 @@ impl<A: Addr, R: Runtime> Receiver<A, R> {
         if let Some(errno) = inner.error {
             self.do_recv(&mut inner);
             return_errno!(errno, "recv failed");
+        }
+
+        if inner.is_shutdown {
+            return_errno!(Errno::EWOULDBLOCK, "the socket recv has been shutdown");
         }
 
         self.do_recv(&mut inner);
@@ -88,6 +98,11 @@ impl<A: Addr, R: Runtime> Receiver<A, R> {
         // Clear recv_len and error
         inner.recv_len.take();
         inner.error.take();
+
+        if inner.is_shutdown {
+            info!("do_recv early return, the socket recv has been shutdown");
+            return;
+        }
 
         let receiver = self.clone();
         // Init the callback invoked upon the completion of the async recv
@@ -110,19 +125,6 @@ impl<A: Addr, R: Runtime> Receiver<A, R> {
                 // TODO: add PRI event if set SO_SELECT_ERR_QUEUE
                 receiver.common.pollee().add_events(Events::ERR);
                 return;
-            }
-
-            // If the socket is connected, we will filter the recv message
-            // according to the peer address. Only the message from the connected
-            // peer is reserved.
-            if let Some(peer) = receiver.common.peer_addr() {
-                // There must be a address
-                let recv_addr: A = inner.get_addr().unwrap();
-                // Ignore the message if it's not from the peer
-                if recv_addr != peer {
-                    receiver.do_recv(&mut inner);
-                    return;
-                }
             }
 
             // Handle the normal case of a successful read
@@ -154,6 +156,23 @@ impl<A: Addr, R: Runtime> Receiver<A, R> {
             unsafe { io_uring.cancel(io_handle) };
         }
     }
+
+    /// Shutdown udp receiver.
+    pub fn shutdown(&self) {
+        let mut inner = self.inner.lock().unwrap();
+        inner.is_shutdown = true;
+    }
+
+    /// Reset udp receiver shutdown state.
+    pub fn reset_shutdown(&self) {
+        let mut inner = self.inner.lock().unwrap();
+        inner.is_shutdown = false;
+    }
+
+    /// Obtain udp receiver shutdown state.
+    fn is_shutdown(&self) -> bool {
+        self.inner.lock().unwrap().is_shutdown
+    }
 }
 
 struct Inner {
@@ -164,6 +183,7 @@ struct Inner {
     req: UntrustedBox<RecvReq>,
     io_handle: Option<IoHandle>,
     error: Option<Errno>,
+    is_shutdown: bool,
 }
 
 unsafe impl Send for Inner {}
@@ -176,6 +196,7 @@ impl Inner {
             req: UntrustedBox::new_uninit(),
             io_handle: None,
             error: None,
+            is_shutdown: false,
         }
     }
 
@@ -217,7 +238,9 @@ impl Inner {
         })
     }
 
-    pub fn get_addr<A: Addr>(&self) -> Option<A> {
+    /// Return the addr of the received packet if udp socket is not connected.
+    /// Return None if udp socket is connected.
+    pub fn get_packet_addr<A: Addr>(&self) -> Option<A> {
         let recv_addr_len = self.req.msg.msg_namelen as usize;
         A::from_c_storage(&self.req.addr, recv_addr_len).ok()
     }
