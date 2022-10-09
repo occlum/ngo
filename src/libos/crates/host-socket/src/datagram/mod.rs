@@ -11,6 +11,7 @@ use crate::runtime::Runtime;
 use crate::sockopt::*;
 
 const MAX_BUF_SIZE: usize = 64 * 1024;
+const OPTMEM_MAX: usize = 64 * 1024;
 
 pub struct DatagramSocket<A: Addr + 'static, R: Runtime> {
     common: Arc<Common<A, R>>,
@@ -207,7 +208,7 @@ impl<A: Addr, R: Runtime> DatagramSocket<A, R> {
         let state = self.state.read().unwrap();
         drop(state);
 
-        self.recvmsg(bufs, RecvFlags::empty())
+        self.recvmsg(bufs, RecvFlags::empty(), None)
             .await
             .map(|(ret, ..)| ret)
     }
@@ -220,8 +221,9 @@ impl<A: Addr, R: Runtime> DatagramSocket<A, R> {
         &self,
         bufs: &mut [&mut [u8]],
         flags: RecvFlags,
+        control: Option<&mut [u8]>,
     ) -> Result<(usize, Option<A>)> {
-        self.receiver.recvmsg(bufs, flags).await
+        self.receiver.recvmsg(bufs, flags, control).await
     }
 
     pub async fn write(&self, buf: &[u8]) -> Result<usize> {
@@ -229,7 +231,7 @@ impl<A: Addr, R: Runtime> DatagramSocket<A, R> {
     }
 
     pub async fn writev(&self, bufs: &[&[u8]]) -> Result<usize> {
-        self.sendmsg(bufs, None, SendFlags::empty()).await
+        self.sendmsg(bufs, None, SendFlags::empty(), None).await
     }
 
     pub async fn sendmsg(
@@ -237,6 +239,7 @@ impl<A: Addr, R: Runtime> DatagramSocket<A, R> {
         bufs: &[&[u8]],
         addr: Option<&A>,
         flags: SendFlags,
+        control: Option<&[u8]>,
     ) -> Result<usize> {
         let state = self.state.read().unwrap();
 
@@ -246,11 +249,11 @@ impl<A: Addr, R: Runtime> DatagramSocket<A, R> {
 
         let res = if let Some(addr) = addr {
             drop(state);
-            self.sender.sendmsg(bufs, addr, flags).await
+            self.sender.sendmsg(bufs, addr, flags, control).await
         } else {
             let peer = self.common.peer_addr().unwrap();
             drop(state);
-            self.sender.sendmsg(bufs, &peer, flags).await
+            self.sender.sendmsg(bufs, &peer, flags, control).await
         };
 
         let mut state = self.state.write().unwrap();
