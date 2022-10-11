@@ -300,7 +300,8 @@ pub async fn do_recvmsg(fd: c_int, msg_mut_ptr: *mut libc::msghdr, flags: c_int)
     let (mut msg, mut addr, mut control, mut bufs) = extract_msghdr_mut_from_user(msg_mut_ptr)?;
     let flags = RecvFlags::from_bits_truncate(flags);
 
-    let (bytes_recv, recv_addr) = socket_file.recvmsg(&mut bufs[..], flags, control).await?;
+    let (bytes_recv, recv_addr, msg_flags) =
+        socket_file.recvmsg(&mut bufs[..], flags, control).await?;
 
     if let Some(addr) = addr {
         if let Some(recv_addr) = recv_addr {
@@ -309,8 +310,8 @@ pub async fn do_recvmsg(fd: c_int, msg_mut_ptr: *mut libc::msghdr, flags: c_int)
         }
     }
 
-    // Clear msghdr flags to 0 after recvmsg
-    msg.msg_flags = 0;
+    // update msghdr msg_flags
+    msg.msg_flags = msg_flags;
 
     Ok(bytes_recv as isize)
 }
