@@ -10,6 +10,10 @@ use crate::prelude::*;
 use crate::runtime::Runtime;
 use crate::sockopt::*;
 
+use async_io::socket::{
+    timeout_to_timeval, GetRecvTimeoutCmd, GetSendTimeoutCmd, SetRecvTimeoutCmd, SetSendTimeoutCmd,
+};
+
 const MAX_BUF_SIZE: usize = 64 * 1024;
 const OPTMEM_MAX: usize = 64 * 1024;
 
@@ -311,6 +315,20 @@ impl<A: Addr, R: Runtime> DatagramSocket<A, R> {
             cmd: SetSockOptRawCmd => {
                 cmd.execute(self.host_fd())?;
             },
+            cmd: SetRecvTimeoutCmd => {
+                self.set_recv_timeout(*cmd.timeout());
+            },
+            cmd: SetSendTimeoutCmd => {
+                self.set_send_timeout(*cmd.timeout());
+            },
+            cmd: GetRecvTimeoutCmd => {
+                let timeval = timeout_to_timeval(self.recv_timeout());
+                cmd.set_output(timeval);
+            },
+            cmd: GetSendTimeoutCmd => {
+                let timeval = timeout_to_timeval(self.send_timeout());
+                cmd.set_output(timeval);
+            },
             cmd: GetAcceptConnCmd => {
                 // Datagram doesn't support listen
                 cmd.set_output(0);
@@ -340,6 +358,22 @@ impl<A: Addr, R: Runtime> DatagramSocket<A, R> {
             }
         });
         Ok(())
+    }
+
+    fn send_timeout(&self) -> Option<Duration> {
+        self.common.send_timeout()
+    }
+
+    fn recv_timeout(&self) -> Option<Duration> {
+        self.common.recv_timeout()
+    }
+
+    fn set_send_timeout(&self, timeout: Duration) {
+        self.common.set_send_timeout(timeout);
+    }
+
+    fn set_recv_timeout(&self, timeout: Duration) {
+        self.common.set_recv_timeout(timeout);
     }
 
     fn cancel_requests(&self) {
