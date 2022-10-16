@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1665872634223,
+  "lastUpdate": 1665958419503,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -1904,6 +1904,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "Receiver Average Rate",
             "value": 571,
+            "unit": "Mbits/sec",
+            "extra": "receiver"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Hui, Chunyang",
+            "username": "jessehui",
+            "email": "sanqian.hcy@antfin.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "8dff1e7e9b79d50706b5453b677b016b246f4462",
+          "message": "[test] Add test cases for epoll\n\nCo-authored-by: rduan@apache.org",
+          "timestamp": "2022-09-28T03:35:18Z",
+          "url": "https://github.com/occlum/ngo/commit/8dff1e7e9b79d50706b5453b677b016b246f4462"
+        },
+        "date": 1665958418265,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Sender Average Rate",
+            "value": 578,
+            "unit": "Mbits/sec",
+            "extra": "sender"
+          },
+          {
+            "name": "Receiver Average Rate",
+            "value": 577,
             "unit": "Mbits/sec",
             "extra": "receiver"
           }
