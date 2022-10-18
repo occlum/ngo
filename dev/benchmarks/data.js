@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1666131258617,
+  "lastUpdate": 1666131915964,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -1972,6 +1972,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "Receiver Average Rate",
             "value": 455,
+            "unit": "Mbits/sec",
+            "extra": "receiver"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Hui, Chunyang",
+            "username": "jessehui",
+            "email": "sanqian.hcy@antfin.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "ddb772723fe70c5215f6c9a5e427aecdfd81ffa6",
+          "message": "Make vfork stop parent child threads\n\nWhen vfork is called and the current process has other running child threads,\nfor Linux, the other threads remain running. For Occlum, this behavior is\ndifferent. All the other threads will be frozen until the vfork returns\nor execve is called in the child process.\n\nThe reason is that since Occlum doesn't support fork, many applications will\nuse vfork to replace fork. For multi-threaded applications, if vfork doesn't\nstop other child threads, the application will be more likely to fail because\nthe child process directly uses the VM and the file table of the parent process.",
+          "timestamp": "2022-10-17T06:45:09Z",
+          "url": "https://github.com/occlum/ngo/commit/ddb772723fe70c5215f6c9a5e427aecdfd81ffa6"
+        },
+        "date": 1666131914473,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Sender Average Rate",
+            "value": 582,
+            "unit": "Mbits/sec",
+            "extra": "sender"
+          },
+          {
+            "name": "Receiver Average Rate",
+            "value": 582,
             "unit": "Mbits/sec",
             "extra": "receiver"
           }
