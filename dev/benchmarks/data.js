@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1666045492648,
+  "lastUpdate": 1666131258617,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -4596,6 +4596,52 @@ window.BENCHMARK_DATA = {
           {
             "name": "Thread 95th Percentile Latency",
             "value": 223.34,
+            "unit": "ms",
+            "extra": "per95"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Hui, Chunyang",
+            "username": "jessehui",
+            "email": "sanqian.hcy@antfin.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "ddb772723fe70c5215f6c9a5e427aecdfd81ffa6",
+          "message": "Make vfork stop parent child threads\n\nWhen vfork is called and the current process has other running child threads,\nfor Linux, the other threads remain running. For Occlum, this behavior is\ndifferent. All the other threads will be frozen until the vfork returns\nor execve is called in the child process.\n\nThe reason is that since Occlum doesn't support fork, many applications will\nuse vfork to replace fork. For multi-threaded applications, if vfork doesn't\nstop other child threads, the application will be more likely to fail because\nthe child process directly uses the VM and the file table of the parent process.",
+          "timestamp": "2022-10-17T06:45:09Z",
+          "url": "https://github.com/occlum/ngo/commit/ddb772723fe70c5215f6c9a5e427aecdfd81ffa6"
+        },
+        "date": 1666131257058,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Threads Minimum latency",
+            "value": 0.07,
+            "unit": "ms",
+            "extra": "min"
+          },
+          {
+            "name": "Threads Average Latency",
+            "value": 33.22,
+            "unit": "ms",
+            "extra": "avg"
+          },
+          {
+            "name": "Threads Maximum Latency",
+            "value": 769.48,
+            "unit": "ms",
+            "extra": "max"
+          },
+          {
+            "name": "Thread 95th Percentile Latency",
+            "value": 196.89,
             "unit": "ms",
             "extra": "per95"
           }
