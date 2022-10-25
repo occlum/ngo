@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1666736064046,
+  "lastUpdate": 1666736750318,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -2074,6 +2074,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "Receiver Average Rate",
             "value": 558,
+            "unit": "Mbits/sec",
+            "extra": "receiver"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Jianfeng Jiang",
+            "username": "StevenJiang1110",
+            "email": "jiangjianfeng.jjf@antgroup.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "de11c8de072b6377791404a177dca348cc2fe67d",
+          "message": "fix copy_bom error message if rsync is not installed",
+          "timestamp": "2022-09-27T06:17:19Z",
+          "url": "https://github.com/occlum/ngo/commit/de11c8de072b6377791404a177dca348cc2fe67d"
+        },
+        "date": 1666736749312,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Sender Average Rate",
+            "value": 535,
+            "unit": "Mbits/sec",
+            "extra": "sender"
+          },
+          {
+            "name": "Receiver Average Rate",
+            "value": 534,
             "unit": "Mbits/sec",
             "extra": "receiver"
           }
