@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1666736750318,
+  "lastUpdate": 1666822474318,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -2108,6 +2108,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "Receiver Average Rate",
             "value": 534,
+            "unit": "Mbits/sec",
+            "extra": "receiver"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "ClawSeven",
+            "username": "ClawSeven",
+            "email": "zehuan97@gmail.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "c65fba5c2efab26bef2448c8c3ea63bf0961006e",
+          "message": "[libos] Add sendfile error handle",
+          "timestamp": "2022-06-16T06:56:36Z",
+          "url": "https://github.com/occlum/ngo/commit/c65fba5c2efab26bef2448c8c3ea63bf0961006e"
+        },
+        "date": 1666822473197,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Sender Average Rate",
+            "value": 562,
+            "unit": "Mbits/sec",
+            "extra": "sender"
+          },
+          {
+            "name": "Receiver Average Rate",
+            "value": 561,
             "unit": "Mbits/sec",
             "extra": "receiver"
           }
