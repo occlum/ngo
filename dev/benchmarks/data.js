@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1667427315333,
+  "lastUpdate": 1667513328368,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -2346,6 +2346,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "Receiver Average Rate",
             "value": 2729,
+            "unit": "Mbits/sec",
+            "extra": "receiver"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Zheng, Qi",
+            "username": "qzheng527",
+            "email": "huaiqing.zq@antgroup.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "a6ac3387926ccffb92ae74de6acaea353bb19068",
+          "message": "Fix the issue of grpc_benchmark not working on go 1.18",
+          "timestamp": "2022-11-01T06:02:50Z",
+          "url": "https://github.com/occlum/ngo/commit/a6ac3387926ccffb92ae74de6acaea353bb19068"
+        },
+        "date": 1667513327274,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Sender Average Rate",
+            "value": 3709,
+            "unit": "Mbits/sec",
+            "extra": "sender"
+          },
+          {
+            "name": "Receiver Average Rate",
+            "value": 3709,
             "unit": "Mbits/sec",
             "extra": "receiver"
           }
