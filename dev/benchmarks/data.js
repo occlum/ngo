@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1667689040003,
+  "lastUpdate": 1667774737229,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -5810,6 +5810,52 @@ window.BENCHMARK_DATA = {
           {
             "name": "Random Read Throughput",
             "value": 175,
+            "unit": "MiB/s",
+            "extra": "randread"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Song Shaowei",
+            "username": "lucassong-mh",
+            "email": "1498430017@qq.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "ae4e3d61d67a39bfe8d9eaac5a04f7e9c1248ed2",
+          "message": "[benchmark ci] Add fio to benchmark ci",
+          "timestamp": "2022-11-01T06:34:29Z",
+          "url": "https://github.com/occlum/ngo/commit/ae4e3d61d67a39bfe8d9eaac5a04f7e9c1248ed2"
+        },
+        "date": 1667774735878,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Sequential Write Throughput",
+            "value": 40.5,
+            "unit": "MiB/s",
+            "extra": "seqwrite"
+          },
+          {
+            "name": "Random Write Throughput",
+            "value": 27.9,
+            "unit": "MiB/s",
+            "extra": "randwrite"
+          },
+          {
+            "name": "Sequential Read Throughput",
+            "value": 287,
+            "unit": "MiB/s",
+            "extra": "seqread"
+          },
+          {
+            "name": "Random Read Throughput",
+            "value": 173,
             "unit": "MiB/s",
             "extra": "randread"
           }
