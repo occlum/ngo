@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1668034934475,
+  "lastUpdate": 1668118246511,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -2584,6 +2584,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "Receiver Average Rate",
             "value": 3640,
+            "unit": "Mbits/sec",
+            "extra": "receiver"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Hui, Chunyang",
+            "username": "jessehui",
+            "email": "sanqian.hcy@antfin.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "3e3460bc5063d7c8dd79e4723cd8da14dd7fb277",
+          "message": "[net] Add support for netlink socket",
+          "timestamp": "2022-10-19T11:57:59Z",
+          "url": "https://github.com/occlum/ngo/commit/3e3460bc5063d7c8dd79e4723cd8da14dd7fb277"
+        },
+        "date": 1668118245371,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Sender Average Rate",
+            "value": 3626,
+            "unit": "Mbits/sec",
+            "extra": "sender"
+          },
+          {
+            "name": "Receiver Average Rate",
+            "value": 3626,
             "unit": "Mbits/sec",
             "extra": "receiver"
           }
