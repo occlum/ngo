@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1668466630081,
+  "lastUpdate": 1668467114487,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -2720,6 +2720,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "Receiver Average Rate",
             "value": 3653,
+            "unit": "Mbits/sec",
+            "extra": "receiver"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "LI Qing",
+            "username": "liqinggd",
+            "email": "geding.lq@antgroup.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "b8ef2f3b78df685bcfac90b54d7d204fa2184d8e",
+          "message": "[libos] Add partial support for '/proc/stat' and '/proc/[pid]/stat'",
+          "timestamp": "2021-05-27T04:48:17Z",
+          "url": "https://github.com/occlum/ngo/commit/b8ef2f3b78df685bcfac90b54d7d204fa2184d8e"
+        },
+        "date": 1668467113514,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Sender Average Rate",
+            "value": 3598,
+            "unit": "Mbits/sec",
+            "extra": "sender"
+          },
+          {
+            "name": "Receiver Average Rate",
+            "value": 3598,
             "unit": "Mbits/sec",
             "extra": "receiver"
           }
