@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1668553404769,
+  "lastUpdate": 1668636670329,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -2788,6 +2788,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "Receiver Average Rate",
             "value": 3651,
+            "unit": "Mbits/sec",
+            "extra": "receiver"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "LI Qing",
+            "username": "liqinggd",
+            "email": "geding.lq@antgroup.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "1db893cd9d6320df5809e1c66428ad34126a73c8",
+          "message": "[libos] Fix the file access mode check before using raw inode",
+          "timestamp": "2022-11-16T02:04:39Z",
+          "url": "https://github.com/occlum/ngo/commit/1db893cd9d6320df5809e1c66428ad34126a73c8"
+        },
+        "date": 1668636669168,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Sender Average Rate",
+            "value": 3702,
+            "unit": "Mbits/sec",
+            "extra": "sender"
+          },
+          {
+            "name": "Receiver Average Rate",
+            "value": 3702,
             "unit": "Mbits/sec",
             "extra": "receiver"
           }
