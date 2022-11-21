@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1669071402216,
+  "lastUpdate": 1669071927551,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -2958,6 +2958,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "Receiver Average Rate",
             "value": 3760,
+            "unit": "Mbits/sec",
+            "extra": "receiver"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "ClawSeven",
+            "username": "ClawSeven",
+            "email": "zehuan97@gmail.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "53e9c7f2dc419004c94f7f34fbea80d6ed19ca76",
+          "message": "[async-rt] Add next slot for runqueue",
+          "timestamp": "2022-11-15T06:56:00Z",
+          "url": "https://github.com/occlum/ngo/commit/53e9c7f2dc419004c94f7f34fbea80d6ed19ca76"
+        },
+        "date": 1669071926551,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Sender Average Rate",
+            "value": 3745,
+            "unit": "Mbits/sec",
+            "extra": "sender"
+          },
+          {
+            "name": "Receiver Average Rate",
+            "value": 3745,
             "unit": "Mbits/sec",
             "extra": "receiver"
           }
