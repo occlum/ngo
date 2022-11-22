@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1669157277777,
+  "lastUpdate": 1669157826087,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -2992,6 +2992,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "Receiver Average Rate",
             "value": 3745,
+            "unit": "Mbits/sec",
+            "extra": "receiver"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Hui, Chunyang",
+            "username": "jessehui",
+            "email": "sanqian.hcy@antfin.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "edb061e293d293a38cf438af0651bdf40bda2d79",
+          "message": "[test] Fix grpc pingpong test",
+          "timestamp": "2022-11-21T12:00:30Z",
+          "url": "https://github.com/occlum/ngo/commit/edb061e293d293a38cf438af0651bdf40bda2d79"
+        },
+        "date": 1669157824938,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Sender Average Rate",
+            "value": 3666,
+            "unit": "Mbits/sec",
+            "extra": "sender"
+          },
+          {
+            "name": "Receiver Average Rate",
+            "value": 3666,
             "unit": "Mbits/sec",
             "extra": "receiver"
           }
