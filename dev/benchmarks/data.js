@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1669243700859,
+  "lastUpdate": 1669327707843,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -3060,6 +3060,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "Receiver Average Rate",
             "value": 3613,
+            "unit": "Mbits/sec",
+            "extra": "receiver"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Zheng, Qi",
+            "username": "qzheng527",
+            "email": "huaiqing.zq@antgroup.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "c8290f45598477bc0f692c99f2731267522a3f85",
+          "message": "[codecov] Remove encrypted image test with buildin image key",
+          "timestamp": "2022-11-24T04:26:28Z",
+          "url": "https://github.com/occlum/ngo/commit/c8290f45598477bc0f692c99f2731267522a3f85"
+        },
+        "date": 1669327706673,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Sender Average Rate",
+            "value": 3473,
+            "unit": "Mbits/sec",
+            "extra": "sender"
+          },
+          {
+            "name": "Receiver Average Rate",
+            "value": 3473,
             "unit": "Mbits/sec",
             "extra": "receiver"
           }
