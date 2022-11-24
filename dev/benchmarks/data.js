@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1669328047557,
+  "lastUpdate": 1669330035850,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -8152,6 +8152,52 @@ window.BENCHMARK_DATA = {
           {
             "name": "Sequential Read Throughput",
             "value": 285,
+            "unit": "MiB/s",
+            "extra": "seqread"
+          },
+          {
+            "name": "Random Read Throughput",
+            "value": 188,
+            "unit": "MiB/s",
+            "extra": "randread"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Zheng, Qi",
+            "username": "qzheng527",
+            "email": "huaiqing.zq@antgroup.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "c8290f45598477bc0f692c99f2731267522a3f85",
+          "message": "[codecov] Remove encrypted image test with buildin image key",
+          "timestamp": "2022-11-24T04:26:28Z",
+          "url": "https://github.com/occlum/ngo/commit/c8290f45598477bc0f692c99f2731267522a3f85"
+        },
+        "date": 1669330034297,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Sequential Write Throughput",
+            "value": 47,
+            "unit": "MiB/s",
+            "extra": "seqwrite"
+          },
+          {
+            "name": "Random Write Throughput",
+            "value": 41.6,
+            "unit": "MiB/s",
+            "extra": "randwrite"
+          },
+          {
+            "name": "Sequential Read Throughput",
+            "value": 280,
             "unit": "MiB/s",
             "extra": "seqread"
           },
