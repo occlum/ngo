@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1669846153231,
+  "lastUpdate": 1669846527247,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -3264,6 +3264,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "Receiver Average Rate",
             "value": 3602,
+            "unit": "Mbits/sec",
+            "extra": "receiver"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "LI Qing",
+            "username": "liqinggd",
+            "email": "geding.lq@antgroup.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "28323dc0389b26c88b4826435b3fa45fdc581f03",
+          "message": "Fix the warnings introduced by some crates",
+          "timestamp": "2022-11-28T07:29:37Z",
+          "url": "https://github.com/occlum/ngo/commit/28323dc0389b26c88b4826435b3fa45fdc581f03"
+        },
+        "date": 1669846526269,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Sender Average Rate",
+            "value": 3429,
+            "unit": "Mbits/sec",
+            "extra": "sender"
+          },
+          {
+            "name": "Receiver Average Rate",
+            "value": 3429,
             "unit": "Mbits/sec",
             "extra": "receiver"
           }
