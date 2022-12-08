@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1670453392836,
+  "lastUpdate": 1670537381823,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -8276,6 +8276,52 @@ window.BENCHMARK_DATA = {
           {
             "name": "Thread 95th Percentile Latency",
             "value": 257.95,
+            "unit": "ms",
+            "extra": "per95"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Zheng, Qi",
+            "username": "qzheng527",
+            "email": "huaiqing.zq@antgroup.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "5d6a61357876e5782a1df110cc74d6e3ec28644c",
+          "message": "Make occlum-go support gcc/glibc option\n\nIn default, occlum-go uses musl-gcc. Users can configure\nocclum-go to use gcc like below.\n\" CC=gcc occlum-go build \"",
+          "timestamp": "2022-12-07T09:07:04Z",
+          "url": "https://github.com/occlum/ngo/commit/5d6a61357876e5782a1df110cc74d6e3ec28644c"
+        },
+        "date": 1670537380561,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Threads Minimum latency",
+            "value": 0.08,
+            "unit": "ms",
+            "extra": "min"
+          },
+          {
+            "name": "Threads Average Latency",
+            "value": 49.31,
+            "unit": "ms",
+            "extra": "avg"
+          },
+          {
+            "name": "Threads Maximum Latency",
+            "value": 559.65,
+            "unit": "ms",
+            "extra": "max"
+          },
+          {
+            "name": "Thread 95th Percentile Latency",
+            "value": 253.35,
             "unit": "ms",
             "extra": "per95"
           }
