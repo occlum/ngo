@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1670537776418,
+  "lastUpdate": 1670539801279,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -9922,6 +9922,52 @@ window.BENCHMARK_DATA = {
           {
             "name": "Random Read Throughput",
             "value": 190,
+            "unit": "MiB/s",
+            "extra": "randread"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Zheng, Qi",
+            "username": "qzheng527",
+            "email": "huaiqing.zq@antgroup.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "5d6a61357876e5782a1df110cc74d6e3ec28644c",
+          "message": "Make occlum-go support gcc/glibc option\n\nIn default, occlum-go uses musl-gcc. Users can configure\nocclum-go to use gcc like below.\n\" CC=gcc occlum-go build \"",
+          "timestamp": "2022-12-07T09:07:04Z",
+          "url": "https://github.com/occlum/ngo/commit/5d6a61357876e5782a1df110cc74d6e3ec28644c"
+        },
+        "date": 1670539799673,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Sequential Write Throughput",
+            "value": 47.3,
+            "unit": "MiB/s",
+            "extra": "seqwrite"
+          },
+          {
+            "name": "Random Write Throughput",
+            "value": 42,
+            "unit": "MiB/s",
+            "extra": "randwrite"
+          },
+          {
+            "name": "Sequential Read Throughput",
+            "value": 285,
+            "unit": "MiB/s",
+            "extra": "seqread"
+          },
+          {
+            "name": "Random Read Throughput",
+            "value": 187,
             "unit": "MiB/s",
             "extra": "randread"
           }
