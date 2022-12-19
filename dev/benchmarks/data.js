@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1671487741631,
+  "lastUpdate": 1671489857876,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -11274,6 +11274,52 @@ window.BENCHMARK_DATA = {
           {
             "name": "Random Read Throughput",
             "value": 188,
+            "unit": "MiB/s",
+            "extra": "randread"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Hui, Chunyang",
+            "username": "jessehui",
+            "email": "sanqian.hcy@antfin.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "4bb48def5e1151bc13444d239b5bed09545971c2",
+          "message": "Update Occlum.yaml template for future EDMM support",
+          "timestamp": "2022-12-14T09:49:59Z",
+          "url": "https://github.com/occlum/ngo/commit/4bb48def5e1151bc13444d239b5bed09545971c2"
+        },
+        "date": 1671489856356,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Sequential Write Throughput",
+            "value": 46.9,
+            "unit": "MiB/s",
+            "extra": "seqwrite"
+          },
+          {
+            "name": "Random Write Throughput",
+            "value": 35.8,
+            "unit": "MiB/s",
+            "extra": "randwrite"
+          },
+          {
+            "name": "Sequential Read Throughput",
+            "value": 280,
+            "unit": "MiB/s",
+            "extra": "seqread"
+          },
+          {
+            "name": "Random Read Throughput",
+            "value": 190,
             "unit": "MiB/s",
             "extra": "randread"
           }
