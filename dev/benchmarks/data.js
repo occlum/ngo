@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1671663207674,
+  "lastUpdate": 1671750661279,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -3978,6 +3978,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "Receiver Average Rate",
             "value": 3647,
+            "unit": "Mbits/sec",
+            "extra": "receiver"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Hui, Chunyang",
+            "username": "jessehui",
+            "email": "sanqian.hcy@antfin.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "4bb48def5e1151bc13444d239b5bed09545971c2",
+          "message": "Update Occlum.yaml template for future EDMM support",
+          "timestamp": "2022-12-14T09:49:59Z",
+          "url": "https://github.com/occlum/ngo/commit/4bb48def5e1151bc13444d239b5bed09545971c2"
+        },
+        "date": 1671750657920,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Sender Average Rate",
+            "value": 2260,
+            "unit": "Mbits/sec",
+            "extra": "sender"
+          },
+          {
+            "name": "Receiver Average Rate",
+            "value": 2260,
             "unit": "Mbits/sec",
             "extra": "receiver"
           }
