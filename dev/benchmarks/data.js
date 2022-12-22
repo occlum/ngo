@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1671750661279,
+  "lastUpdate": 1671751104585,
   "repoUrl": "https://github.com/occlum/ngo",
   "entries": {
     "Iperf3 Benchmark": [
@@ -9350,6 +9350,52 @@ window.BENCHMARK_DATA = {
           {
             "name": "Thread 95th Percentile Latency",
             "value": 277.21,
+            "unit": "ms",
+            "extra": "per95"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Hui, Chunyang",
+            "username": "jessehui",
+            "email": "sanqian.hcy@antfin.com"
+          },
+          "committer": {
+            "name": "volcano",
+            "username": "volcano0dr",
+            "email": "volcano.dr@hotmail.com"
+          },
+          "id": "4bb48def5e1151bc13444d239b5bed09545971c2",
+          "message": "Update Occlum.yaml template for future EDMM support",
+          "timestamp": "2022-12-14T09:49:59Z",
+          "url": "https://github.com/occlum/ngo/commit/4bb48def5e1151bc13444d239b5bed09545971c2"
+        },
+        "date": 1671751102236,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "Threads Minimum latency",
+            "value": 0.07,
+            "unit": "ms",
+            "extra": "min"
+          },
+          {
+            "name": "Threads Average Latency",
+            "value": 53.84,
+            "unit": "ms",
+            "extra": "avg"
+          },
+          {
+            "name": "Threads Maximum Latency",
+            "value": 775.23,
+            "unit": "ms",
+            "extra": "max"
+          },
+          {
+            "name": "Thread 95th Percentile Latency",
+            "value": 292.6,
             "unit": "ms",
             "extra": "per95"
           }
