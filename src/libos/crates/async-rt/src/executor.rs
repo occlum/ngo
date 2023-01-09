@@ -128,13 +128,16 @@ impl Executor {
             let context = &mut Context::from_waker(&*waker);
             let ret = future.as_mut().poll(context);
             let mut elapsed = start.elapsed().as_millis();
-            if elapsed == 0 {
-                elapsed = 1;
+            if elapsed > 10 {
+                task.sched_state().set_blocking(true);
             }
-            let remain_ms = task.sched_state().elapse(elapsed as u32);
-            if remain_ms == 0 {
-                task.sched_state().report_preemption();
-            }
+            // if elapsed == 0 {
+            //     elapsed = 1;
+            // }
+            // let remain_ms = task.sched_state().elapse(elapsed as u32);
+            // if remain_ms == 0 {
+            //     task.sched_state().report_preemption();
+            // }
 
             if let Poll::Ready(()) = ret {
                 // As the task is completed, we can destory the future

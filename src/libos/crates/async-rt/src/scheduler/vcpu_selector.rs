@@ -116,6 +116,10 @@ impl VcpuSelector {
             }
         }
 
+        if sched_state.is_blocking() {
+            return has_last_vcpu.unwrap();
+        }
+
         // 2. Give preferance to idle vCPU in vCPU selecting strategy
         // Todo: integrate the information of pending tasks into vCPU selecting strategy.
         // Consider the situation that this vCPU has large number of pending tasks,

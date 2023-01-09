@@ -39,8 +39,8 @@ impl Waiter {
     /// Wait until being woken by the waker or interrupted by TIRQs.
     pub async fn wait(&self) -> Result<()> {
         let is_interrupted = self.inner.wait().await;
-        let current = crate::task::current::get();
-        current.sched_state().report_sleep();
+        // let current = crate::task::current::get();
+        // current.sched_state().report_sleep();
 
         if !is_interrupted {
             Ok(())

@@ -64,15 +64,27 @@ impl<E: SchedEntity> Scheduler<E> {
     /// If the current thread is not a vCPU, then it is still ok to
     /// enqueue entities. Just leave `this_vcpu` as `None`.
     pub fn enqueue(&self, entity: &Arc<E>) {
+        self.num_tasks.fetch_add(1, Ordering::Relaxed);
+        self.wake_vcpus();
+
+        // if task run completed, check runqueue length
+        if entity.sched_state().is_yielded() {
+            let last_vcpu = entity.sched_state().vcpu();
+            if let Some(vcpu) = last_vcpu {
+                let last_local_scheduler = &self.local_schedulers[vcpu as usize];
+                if last_local_scheduler.len() == 0 {
+                    last_local_scheduler.enqueue(entity);
+                    return;
+                }
+            }
+        }
+
         let this_vcpu = vcpu::get_current();
         let target_vcpu = self
             .vcpu_selector
             .select_vcpu(entity.sched_state(), this_vcpu);
         let local_scheduler = &self.local_schedulers[target_vcpu as usize];
         local_scheduler.enqueue(entity);
-
-        self.num_tasks.fetch_add(1, Ordering::Relaxed);
-        self.wake_vcpus();
     }
 
     /// Dequeue a scheduable entity on the current vCPU.
@@ -103,9 +115,10 @@ impl<E: SchedEntity> Scheduler<E> {
         // We want to balance the performance loss between park/unpark switching and
         // lack of active vcpus. If the ratio between vcpus and tasks in queue equals to 1,
         // the large amounts of unparking operation would cause the average latency up to 2 times.
-        if num_tasks * 2 / 3 > num_running_vcpus {
+        // if num_tasks * 1 > num_running_vcpus {
+        if num_tasks * 1 > num_running_vcpus {
             let num_wake = (self.num_vcpus() - num_running_vcpus)
-                .min(num_tasks * 2 / 3 - num_running_vcpus) as usize;
+                .min(num_tasks * 1 - num_running_vcpus) as usize;
             self.vcpu_selector
                 .sleep_vcpu_mask()
                 .iter_ones()
