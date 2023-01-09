@@ -9,7 +9,8 @@ use async_io::socket::{
 };
 use async_io::socket::{RecvFlags, SendFlags, Shutdown, Type};
 use async_socket::sockopt::{
-    GetAcceptConnCmd, GetDomainCmd, GetPeerNameCmd, GetSockOptRawCmd, GetTypeCmd, SetSockOptRawCmd,
+    GetAcceptConnCmd, GetDomainCmd, GetPeerNameCmd, GetRcvBufSizeCmd, GetSndBufSizeCmd,
+    GetSockOptRawCmd, GetTypeCmd, SetRcvBufSizeCmd, SetSndBufSizeCmd, SetSockOptRawCmd,
     SockOptName,
 };
 use num_enum::TryFromPrimitive;
@@ -562,6 +563,8 @@ fn new_getsockopt_cmd(level: i32, optname: i32, optlen: u32) -> Result<Box<dyn I
         SockOptName::SO_RCVTIMEO_OLD => Box::new(GetRecvTimeoutCmd::new(())),
         SockOptName::SO_SNDTIMEO_OLD => Box::new(GetSendTimeoutCmd::new(())),
         SockOptName::SO_CNX_ADVICE => return_errno!(ENOPROTOOPT, "it's a write-only option"),
+        SockOptName::SO_SNDBUF => Box::new(GetSndBufSizeCmd::new(())),
+        SockOptName::SO_RCVBUF => Box::new(GetRcvBufSizeCmd::new(())),
         _ => Box::new(GetSockOptRawCmd::new(level, optname, optlen)),
     })
 }
@@ -634,6 +637,28 @@ fn new_setsockopt_cmd(level: i32, optname: i32, optval: &[u8]) -> Result<Box<dyn
             trace!("send timeout = {:?}", timeout);
             Box::new(SetSendTimeoutCmd::new(timeout))
         }
+        SockOptName::SO_SNDBUF => {
+            let send_buf_size = unsafe { *(optval as *const _ as *const usize) };
+            if send_buf_size < 1024 {
+                // Based on the man page: The minimum (doubled) value for this option is 2048.
+                return_errno!(EINVAL, "invalid send buffer size");
+            }
+            // Based on man page: The kernel doubles this value (to allow space for bookkeeping overhead)
+            // when it is set using setsockopt(2), and this doubled value is returned by getsockopt(2).
+            let send_buf_size = send_buf_size * 2;
+            Box::new(SetSndBufSizeCmd::new(send_buf_size))
+        }
+        SockOptName::SO_RCVBUF => {
+            let recv_buf_size = unsafe { *(optval as *const _ as *const usize) };
+            if recv_buf_size < 128 {
+                // Based on the man page: The minimum (doubled) value for this option is 256.
+                return_errno!(EINVAL, "invalid send buffer size");
+            }
+            // Based on man page: The kernel doubles this value (to allow space for bookkeeping overhead)
+            // when it is set using setsockopt(2), and this doubled value is returned by getsockopt(2).
+            let recv_buf_size = recv_buf_size * 2;
+            Box::new(SetRcvBufSizeCmd::new(recv_buf_size))
+        }
         _ => Box::new(SetSockOptRawCmd::new(level, optname, optval)),
     })
 }
@@ -659,6 +684,12 @@ fn get_optval(cmd: &dyn IoctlCmd) -> Result<&[u8]> {
             cmd.get_output_as_bytes()
         },
         cmd : GetSendTimeoutCmd => {
+            cmd.get_output_as_bytes()
+        },
+        cmd : GetSndBufSizeCmd => {
+            cmd.get_output_as_bytes()
+        },
+        cmd : GetRcvBufSizeCmd => {
             cmd.get_output_as_bytes()
         },
         _ => {
