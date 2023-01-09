@@ -160,13 +160,8 @@ impl SocketFile {
         socket_type: Type,
         nonblocking: bool,
     ) -> Result<Self> {
-        if domain != Domain::Netlink {
-            let protocol = SocketProtocol::try_from(protocol)
-                .map_err(|_| errno!(EINVAL, "invalid or unsupported network protocol"))?;
-            if protocol != SocketProtocol::IPPROTO_IP && protocol != SocketProtocol::IPPROTO_TCP {
-                return_errno!(EINVAL, "unsupported protocol");
-            }
-        }
+        let protocol = SocketProtocol::try_from(protocol)
+            .map_err(|_| errno!(EINVAL, "invalid or unsupported network protocol"))?;
 
         match socket_type {
             Type::STREAM => {
@@ -187,6 +182,10 @@ impl SocketFile {
                         return_errno!(ESOCKTNOSUPPORT, "netlink is a datagram-oriented service");
                     }
                 };
+                if protocol != SocketProtocol::IPPROTO_IP && protocol != SocketProtocol::IPPROTO_TCP
+                {
+                    return_errno!(EINVAL, "unsupported protocol");
+                }
                 let new_self = Self { socket: any_socket };
                 Ok(new_self)
             }
@@ -215,6 +214,12 @@ impl SocketFile {
                         return_errno!(EINVAL, "not support IPv6, yet");
                     }
                 };
+                if domain != Domain::Netlink
+                    && protocol != SocketProtocol::IPPROTO_IP
+                    && protocol != SocketProtocol::IPPROTO_UDP
+                {
+                    return_errno!(EINVAL, "unsupported protocol");
+                }
                 let new_self = Self { socket: any_socket };
                 Ok(new_self)
             }

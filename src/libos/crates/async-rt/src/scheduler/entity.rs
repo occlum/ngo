@@ -25,6 +25,7 @@ pub struct SchedState {
     affinity: AtomicBits,
     vcpu: AtomicU32,
     is_yielded: AtomicBool,
+    is_blocking: AtomicBool,
 }
 
 impl SchedState {
@@ -38,6 +39,7 @@ impl SchedState {
             affinity: AtomicBits::new_ones(num_vcpus as usize),
             vcpu: AtomicU32::new(Self::NONE_VCPU),
             is_yielded: AtomicBool::new(false),
+            is_blocking: AtomicBool::new(false),
         };
         new_self.assign_timeslice();
         new_self
@@ -181,5 +183,20 @@ impl SchedState {
     #[inline(always)]
     pub(crate) fn set_yielded(&self, is_yielded: bool) -> bool {
         self.is_yielded.swap(is_yielded, Relaxed)
+    }
+
+    #[inline(always)]
+    pub(crate) fn is_yielded(&self) -> bool {
+        self.is_yielded.load(Relaxed)
+    }
+
+    #[inline(always)]
+    pub(crate) fn set_blocking(&self, is_blocking: bool) -> bool {
+        self.is_blocking.swap(is_blocking, Relaxed)
+    }
+
+    #[inline(always)]
+    pub(crate) fn is_blocking(&self) -> bool {
+        self.is_blocking.load(Relaxed)
     }
 }
