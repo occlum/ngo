@@ -1,13 +1,16 @@
 name: Benchmarks Test
 
 on:
+  push:
+    branches:
+      - 1.0.0-preview
   schedule:
     # Schedule to run everyday at 10PM UTC (6AM CST)
     - cron:  '0 22 * * *'
 
 jobs:
   Sysbench_Test:
-    timeout-minutes: 20
+    timeout-minutes: 40
     runs-on: ${{ matrix.self_runner }}
     strategy:
       matrix:
@@ -57,7 +60,7 @@ jobs:
       run: docker stop ${{ env.CONTAINER_NAME }}
 
   Iperf3_Test:
-    timeout-minutes: 20
+    timeout-minutes: 40
     runs-on: ${{ matrix.self_runner }}
     strategy:
       matrix:

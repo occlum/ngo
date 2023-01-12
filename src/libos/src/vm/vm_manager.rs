@@ -62,8 +62,6 @@ impl VMManager {
 
     // Allocate single VMA chunk for new process whose process VM is not ready yet
     pub fn alloc(&self, options: &VMMapOptions) -> Result<(VMRange, ChunkRef)> {
-        let addr = *options.addr();
-        let size = *options.size();
         if let Ok(new_chunk) = self.internal().mmap_chunk(options) {
             return Ok((new_chunk.range().clone(), new_chunk));
         }
@@ -368,6 +366,48 @@ impl VMManager {
         }
     }
 
+    // Reset memory permission to default (R/W) and reset the memory contents to zero. Currently only used by brk.
+    pub fn reset_memory(&self, reset_range: VMRange) -> Result<()> {
+        let intersect_chunks = {
+            let chunks = self
+                .internal()
+                .chunks
+                .iter()
+                .filter(|&chunk| chunk.range().intersect(&reset_range).is_some())
+                .map(|chunk| chunk.clone())
+                .collect::<Vec<_>>();
+
+            // In the heap area, there shouldn't be any default chunks or chunks owned by other process.
+            if chunks
+                .iter()
+                .any(|chunk| !chunk.is_owned_by_current_process() || !chunk.is_single_vma())
+            {
+                return_errno!(EINVAL, "There is something wrong with the intersect chunks");
+            }
+            chunks
+        };
+
+        intersect_chunks.iter().for_each(|chunk| {
+            if let ChunkType::SingleVMA(vma) = chunk.internal() {
+                if let Some(intersection_range) = chunk.range().intersect(&reset_range) {
+                    let mut internal_manager = self.internal();
+                    internal_manager.mprotect_single_vma_chunk(
+                        &chunk,
+                        intersection_range,
+                        VMPerms::DEFAULT,
+                    );
+
+                    unsafe {
+                        let buf = intersection_range.as_slice_mut();
+                        buf.iter_mut().for_each(|b| *b = 0)
+                    }
+                }
+            }
+        });
+
+        Ok(())
+    }
+
     pub fn msync(&self, addr: usize, size: usize) -> Result<()> {
         let sync_range = VMRange::new_with_size(addr, size)?;
         let chunk = {
@@ -432,14 +472,14 @@ impl VMManager {
             // Must lock the internal manager first here in case the chunk's range and vma are conflict when other threads are operating the VM
             let mut internal_manager = self.internal.lock().unwrap();
             let mut merged_vmas = current.vm().merge_all_single_vma_chunks()?;
+            internal_manager.clean_single_vma_chunks();
             while merged_vmas.len() != 0 {
                 let merged_vma = merged_vmas.pop().unwrap();
                 internal_manager.add_new_chunk(&current, merged_vma);
             }
-            internal_manager.clean_single_vma_chunks();
         }
 
-        // Deternmine the chunk of the old range
+        // Determine the chunk of the old range
         let chunk = {
             let process_mem_chunks = current.vm().mem_chunks().read().unwrap();
             let chunk = process_mem_chunks
@@ -468,7 +508,7 @@ impl VMManager {
         let ret_addr = if let Some(mmap_options) = remap_result_option.mmap_options() {
             let mmap_addr = self.mmap(mmap_options);
 
-            // FIXME: For MRemapFlags::MayMove flag, we checked if the prefered range is free when parsing the options.
+            // FIXME: For MRemapFlags::MayMove flag, we checked if the preferred range is free when parsing the options.
             // But there is no lock after the checking, thus the mmap might fail. In this case, we should try mmap again.
             if mmap_addr.is_err() && remap_result_option.may_move() == true {
                 return_errno!(
@@ -488,7 +528,7 @@ impl VMManager {
 
         if let Some((munmap_addr, munmap_size)) = remap_result_option.munmap_args() {
             self.munmap(*munmap_addr, *munmap_size)
-                .expect("Shouln't fail");
+                .expect("Shouldn't fail");
         }
 
         return Ok(ret_addr);
@@ -616,7 +656,7 @@ impl VMManager {
     }
 }
 
-// Modification on this structure must aquire the global lock.
+// Modification on this structure must acquire the global lock.
 // TODO: Enable fast_default_chunks for faster chunk allocation
 #[derive(Debug)]
 pub struct InternalVMManager {
@@ -779,12 +819,14 @@ impl InternalVMManager {
         self.chunks.insert(new_chunk);
     }
 
+    // protect_range should a sub-range of the chunk range
     pub fn mprotect_single_vma_chunk(
         &mut self,
         chunk: &ChunkRef,
         protect_range: VMRange,
         new_perms: VMPerms,
     ) -> Result<()> {
+        debug_assert!(chunk.range().is_superset_of(&protect_range));
         let vma = match chunk.internal() {
             ChunkType::MultiVMA(_) => {
                 unreachable!();
@@ -843,15 +885,16 @@ impl InternalVMManager {
                         )
                     };
 
-                    let updated_vmas = vec![containing_vma.clone(), new_vma, remaining_old_vma];
+                    // Put containing_vma at last to be updated first.
+                    let updated_vmas = vec![new_vma, remaining_old_vma, containing_vma.clone()];
                     updated_vmas
                 }
                 _ => {
                     if same_start {
-                        // Protect range is at left side of the cotaining vma
+                        // Protect range is at left side of the containing vma
                         containing_vma.set_start(protect_range.end());
                     } else {
-                        // Protect range is at right side of the cotaining vma
+                        // Protect range is at right side of the containing vma
                         containing_vma.set_end(protect_range.start());
                     }
 
@@ -863,28 +906,33 @@ impl InternalVMManager {
                     );
                     VMPerms::apply_perms(&new_vma, new_vma.perms());
 
-                    let updated_vmas = vec![containing_vma.clone(), new_vma];
+                    // Put containing_vma at last to be updated first.
+                    let updated_vmas = vec![new_vma, containing_vma.clone()];
                     updated_vmas
                 }
             }
         };
 
         let current = current!();
-        while updated_vmas.len() > 1 {
-            let vma = updated_vmas.pop().unwrap();
-            self.add_new_chunk(&current, vma);
+        // First update current vma chunk
+        if updated_vmas.len() > 1 {
+            let update_vma = updated_vmas.pop().unwrap();
+            self.update_single_vma_chunk(&current, &chunk, update_vma);
         }
 
-        debug_assert!(updated_vmas.len() == 1);
-        let vma = updated_vmas.pop().unwrap();
-        self.update_single_vma_chunk(&current, &chunk, vma);
+        // Then add new chunks if any
+        updated_vmas.into_iter().for_each(|vma| {
+            self.add_new_chunk(&current, vma);
+        });
 
         Ok(())
     }
 
+    // Must make sure that all the chunks are valid before adding new chunks
     fn add_new_chunk(&mut self, current_thread: &ThreadRef, new_vma: VMArea) {
         let new_vma_chunk = Arc::new(Chunk::new_chunk_with_vma(new_vma));
-        self.chunks.insert(new_vma_chunk.clone());
+        let success = self.chunks.insert(new_vma_chunk.clone());
+        debug_assert!(success);
         current_thread.vm().add_mem_chunk(new_vma_chunk);
     }
 
